@@ -453,6 +453,22 @@ Each attempt uses a fresh `attemptId` (monotonically increasing uint per
 `sid`) and fresh ranging material; stale Apple shareable configurations are
 never reused. Ranging results are never an authentication factor.
 
+Attempt negotiation per method:
+
+- `ni_peer`: the Noise session initiator sends `ranging_offer`; the peer
+  answers `ranging_accept` (echoing the attempt ID); the offerer sends
+  `ranging_start`; both exchange `ni_token`.
+- `uwb_apple_interop`: the Android side (always the UWB controller) opens
+  the attempt by sending `apple_config` directly — that message is the offer
+  and carries the fresh `attemptId`; iOS adopts the ID and echoes it in
+  `apple_shareable`. No separate `ranging_offer` round-trip is used.
+- `uwb_android_oob`: either side's first `oob_data` for a fresh `attemptId`
+  opens the attempt; the platform OOB payloads negotiate the rest.
+- `ble_rssi`: local-only; no messages.
+
+Duplicate operations for an already-applied `(sid, attemptId)` are
+idempotent no-ops (§10); `ranging_stop`/`ranging_error` close an attempt.
+
 ## 13. Reason and error codes
 
 Disconnect / transition reasons:
@@ -502,11 +518,11 @@ next attempt.
 | File | Contents |
 |---|---|
 | `noise_official_vectors.json` | cacophony vectors for both patterns |
-| `noise_app_vectors.json` | NNpsk0 + IKpsk2 with app prologues/PSK derivations, transport messages for seq 0 and 1 both directions, wrong-PSK and bit-flip failure cases |
+| `noise_app_vectors.json` | NNpsk0 pairing handshake with the app prologue/PSK derivation and the full pairing-channel transport records |
 | `derivation_vectors.json` | pairingPsk, pairRoot, sessionPsk, discovery keys, confirm MACs, fingerprint |
 | `discovery_vectors.json` | tokens for epochs E−1/E/E+1, both roles |
 | `cbor_vectors.json` | canonical encode cases and reject cases |
-| `envelope_vectors.json` | full session transport records for real message types |
+| `envelope_vectors.json` | IKpsk2 session handshake, split keys, session transport records for real message types, and the wrong-PSK / substituted-static / bit-flip / replay failure cases |
 | `fragment_vectors.json` | fragmentation at MTU 23/185/512 and malformed-fragment reject cases |
 | `invite_vectors.json` | invitation encode/decode and reject cases |
 | `capability_selection.json` | ranging-method selection matrix |

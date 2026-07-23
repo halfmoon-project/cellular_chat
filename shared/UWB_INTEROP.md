@@ -40,11 +40,13 @@ Apple agreement/specification before shipping.
 UWB is a ranging radio, not the data link. The authenticated Noise session
 from `PROTOCOL_V2.md` is the out-of-band (OOB) link.
 
-1. The peers exchange `ranging_offer` / `ranging_accept` for method
-   `uwb_apple_interop` with a fresh attempt ID.
-2. Android creates a fresh UWB short address for this attempt, builds the
-   48-byte Accessory Configuration Data below, and sends it as the byte-string
-   payload of `apple_config`.
+1. Capability negotiation (PROTOCOL_V2.md §12) selects `uwb_apple_interop`
+   deterministically on both sides; no `ranging_offer` round-trip is used for
+   this method.
+2. Android creates a fresh UWB short address and a fresh attempt ID, builds
+   the 48-byte Accessory Configuration Data below, and sends it as the
+   byte-string payload of `apple_config` — this message opens the attempt.
+   iOS adopts the attempt ID and echoes it in `apple_shareable`.
 3. iOS passes the 48 bytes directly to
    `NINearbyAccessoryConfiguration(data:)`. It assigns an `NISessionDelegate`
    and calls `NISession.run(_:)`.

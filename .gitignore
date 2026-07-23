@@ -13,3 +13,6 @@ android/local.properties
 # IDE
 .idea/
 *.iml
+
+# Swift Package Manager
+.build/
