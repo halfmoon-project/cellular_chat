@@ -1,7 +1,7 @@
 # iOS / Android UWB interoperability note
 
-This note is the implementation contract for the `ni_accessory_config` and
-`ni_shareable_config` messages in `PROTOCOL.md`.
+This note is the implementation contract for the `apple_config` and
+`apple_shareable` messages in `PROTOCOL_V2.md`.
 
 ## Status and scope
 
@@ -37,19 +37,20 @@ Apple agreement/specification before shipping.
 
 ## OOB sequence
 
-UWB is a ranging radio, not the chat/file data link. The already-authenticated
-TCP connection from `PROTOCOL.md` is the out-of-band (OOB) link.
+UWB is a ranging radio, not the data link. The authenticated Noise session
+from `PROTOCOL_V2.md` is the out-of-band (OOB) link.
 
-1. Either peer sends `ranging_start`.
+1. The peers exchange `ranging_offer` / `ranging_accept` for method
+   `uwb_apple_interop` with a fresh attempt ID.
 2. Android creates a fresh UWB short address for this attempt, builds the
-   48-byte Accessory Configuration Data below, and sends it as the Base64
-   payload of `ni_accessory_config`.
-3. iOS decodes the Base64 payload and passes the 48 bytes directly to
+   48-byte Accessory Configuration Data below, and sends it as the byte-string
+   payload of `apple_config`.
+3. iOS passes the 48 bytes directly to
    `NINearbyAccessoryConfiguration(data:)`. It assigns an `NISessionDelegate`
    and calls `NISession.run(_:)`.
 4. iOS receives
    `session(_:didGenerateShareableConfigurationData:for:)` and immediately
-   sends that `Data` unchanged as `ni_shareable_config`.
+   sends that `Data` unchanged as `apple_shareable`.
 5. Android parses and validates the 35-byte shareable data, creates the raw
    Android ranging session, and starts it immediately. Apple's callback puts
    the iOS session in a limited preparedness window.
@@ -58,9 +59,9 @@ TCP connection from `PROTOCOL.md` is the out-of-band (OOB) link.
    retry MUST create a new accessory configuration and a new random source
    address; stale shareable configuration MUST NOT be reused.
 
-The Base64 payload contains only the Apple configuration bytes. Do not prepend
-the `0x01` message ID used by Apple's BLE sample application; the JSON `type`
-already provides framing.
+The payload contains only the Apple configuration bytes. Do not prepend the
+`0x01` message ID used by Apple's BLE sample application; the protocol v2
+message type already provides framing.
 
 ## 48-byte Accessory Configuration Data (Android to iOS)
 
