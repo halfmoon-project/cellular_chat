@@ -1,0 +1,15 @@
+{
+  "originHash" : "b20cd93a40ce1fd7eeca85d5541f15a42b9374e0bb526568ff4ad89223b3f67c",
+  "pins" : [
+    {
+      "identity" : "halfmoon-design",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/halfmoon-project/halfmoon-design.git",
+      "state" : {
+        "revision" : "af8c71da638f18711a7b6ddb972e11e29ea3106e",
+        "version" : "0.4.0"
+      }
+    }
+  ],
+  "version" : 3
+}

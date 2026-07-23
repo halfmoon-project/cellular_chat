@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="hm_bg_default">#020617</color>
+    <color name="hm_bg_subtle">#0F172A</color>
+    <color name="hm_bg_muted">#1E293B</color>
+    <color name="hm_fg_default">#F8FAFC</color>
+    <color name="hm_fg_muted">#94A3B8</color>
+    <color name="hm_fg_subtle">#64748B</color>
+    <color name="hm_fg_inverted">#0F172A</color>
+    <color name="hm_border_default">#1E293B</color>
+    <color name="hm_border_strong">#334155</color>
+    <color name="hm_action_primary_bg">#3B82F6</color>
+    <color name="hm_action_primary_fg">#FFFFFF</color>
+    <color name="hm_status_danger">#EF4444</color>
+</resources>

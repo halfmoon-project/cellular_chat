@@ -1,0 +1,275 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		C00000000000000000000001 /* CellularChatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000001 /* CellularChatApp.swift */; };
+		C00000000000000000000002 /* ConnectionIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000002 /* ConnectionIdentity.swift */; };
+		C00000000000000000000003 /* WireMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000003 /* WireMessage.swift */; };
+		C00000000000000000000004 /* FrameCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000004 /* FrameCodec.swift */; };
+		C00000000000000000000005 /* PeerConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000005 /* PeerConnection.swift */; };
+		C00000000000000000000006 /* PeerNetworkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000006 /* PeerNetworkManager.swift */; };
+		C00000000000000000000007 /* NearbyInteractionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000007 /* NearbyInteractionManager.swift */; };
+		C00000000000000000000008 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000008 /* RootView.swift */; };
+		C00000000000000000000009 /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000009 /* SetupView.swift */; };
+		C0000000000000000000000A /* DirectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000A /* DirectionView.swift */; };
+		C0000000000000000000000B /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000B /* ChatView.swift */; };
+		C0000000000000000000000C /* ConnectionIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000E /* ConnectionIdentityTests.swift */; };
+		C0000000000000000000000D /* FrameCodecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000F /* FrameCodecTests.swift */; };
+		C0000000000000000000000E /* HalfmoonTokens in Frameworks */ = {isa = PBXBuildFile; productRef = H00000000000000000000002 /* HalfmoonTokens */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D00000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A00000000000000000000002;
+			remoteInfo = CellularChat;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		B00000000000000000000001 /* CellularChatApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CellularChatApp.swift; sourceTree = "<group>"; };
+		B00000000000000000000002 /* ConnectionIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionIdentity.swift; sourceTree = "<group>"; };
+		B00000000000000000000003 /* WireMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WireMessage.swift; sourceTree = "<group>"; };
+		B00000000000000000000004 /* FrameCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameCodec.swift; sourceTree = "<group>"; };
+		B00000000000000000000005 /* PeerConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerConnection.swift; sourceTree = "<group>"; };
+		B00000000000000000000006 /* PeerNetworkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerNetworkManager.swift; sourceTree = "<group>"; };
+		B00000000000000000000007 /* NearbyInteractionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NearbyInteractionManager.swift; sourceTree = "<group>"; };
+		B00000000000000000000008 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		B00000000000000000000009 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
+		B0000000000000000000000A /* DirectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectionView.swift; sourceTree = "<group>"; };
+		B0000000000000000000000B /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		B0000000000000000000000C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B0000000000000000000000E /* ConnectionIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionIdentityTests.swift; sourceTree = "<group>"; };
+		B0000000000000000000000F /* FrameCodecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameCodecTests.swift; sourceTree = "<group>"; };
+		B00000000000000000000010 /* CellularChat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CellularChat.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B00000000000000000000011 /* CellularChatTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CellularChatTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E00000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C0000000000000000000000E /* HalfmoonTokens in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E00000000000000000000002 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A00000000000000000000004 = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000005 /* CellularChat */,
+				A00000000000000000000009 /* CellularChatTests */,
+				A0000000000000000000000A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A00000000000000000000005 /* CellularChat */ = {
+			isa = PBXGroup;
+			children = (
+				B00000000000000000000001 /* CellularChatApp.swift */,
+				A00000000000000000000006 /* Networking */,
+				A00000000000000000000007 /* Ranging */,
+				A00000000000000000000008 /* Views */,
+				B0000000000000000000000C /* Info.plist */,
+			);
+			path = CellularChat;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000006 /* Networking */ = {
+			isa = PBXGroup;
+			children = (
+				B00000000000000000000002 /* ConnectionIdentity.swift */,
+				B00000000000000000000003 /* WireMessage.swift */,
+				B00000000000000000000004 /* FrameCodec.swift */,
+				B00000000000000000000005 /* PeerConnection.swift */,
+				B00000000000000000000006 /* PeerNetworkManager.swift */,
+			);
+			path = Networking;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000007 /* Ranging */ = {
+			isa = PBXGroup;
+			children = (B00000000000000000000007 /* NearbyInteractionManager.swift */,);
+			path = Ranging;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000008 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				B00000000000000000000008 /* RootView.swift */,
+				B00000000000000000000009 /* SetupView.swift */,
+				B0000000000000000000000A /* DirectionView.swift */,
+				B0000000000000000000000B /* ChatView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000009 /* CellularChatTests */ = {
+			isa = PBXGroup;
+			children = (
+				B0000000000000000000000E /* ConnectionIdentityTests.swift */,
+				B0000000000000000000000F /* FrameCodecTests.swift */,
+			);
+			path = CellularChatTests;
+			sourceTree = "<group>";
+		};
+		A0000000000000000000000A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B00000000000000000000010 /* CellularChat.app */,
+				B00000000000000000000011 /* CellularChatTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A00000000000000000000002 /* CellularChat */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F00000000000000000000002 /* Build configuration list for PBXNativeTarget "CellularChat" */;
+			buildPhases = (
+				E00000000000000000000003 /* Sources */,
+				E00000000000000000000001 /* Frameworks */,
+				E00000000000000000000005 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = CellularChat;
+			packageProductDependencies = (
+				H00000000000000000000002 /* HalfmoonTokens */,
+			);
+			productName = CellularChat;
+			productReference = B00000000000000000000010 /* CellularChat.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A00000000000000000000003 /* CellularChatTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F00000000000000000000003 /* Build configuration list for PBXNativeTarget "CellularChatTests" */;
+			buildPhases = (
+				E00000000000000000000004 /* Sources */,
+				E00000000000000000000002 /* Frameworks */,
+				E00000000000000000000006 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = (D00000000000000000000002 /* PBXTargetDependency */,);
+			name = CellularChatTests;
+			productName = CellularChatTests;
+			productReference = B00000000000000000000011 /* CellularChatTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A00000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2620;
+				LastUpgradeCheck = 2620;
+				TargetAttributes = {
+					A00000000000000000000002 = {CreatedOnToolsVersion = 26.2; };
+					A00000000000000000000003 = {CreatedOnToolsVersion = 26.2; TestTargetID = A00000000000000000000002; };
+				};
+			};
+			buildConfigurationList = F00000000000000000000001 /* Build configuration list for PBXProject "CellularChat" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = A00000000000000000000004;
+			packageReferences = (
+				H00000000000000000000001 /* XCRemoteSwiftPackageReference "halfmoon-design" */,
+			);
+			productRefGroup = A0000000000000000000000A /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (A00000000000000000000002 /* CellularChat */, A00000000000000000000003 /* CellularChatTests */,);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E00000000000000000000005 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		E00000000000000000000006 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E00000000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C00000000000000000000001 /* CellularChatApp.swift in Sources */,
+				C00000000000000000000002 /* ConnectionIdentity.swift in Sources */,
+				C00000000000000000000003 /* WireMessage.swift in Sources */,
+				C00000000000000000000004 /* FrameCodec.swift in Sources */,
+				C00000000000000000000005 /* PeerConnection.swift in Sources */,
+				C00000000000000000000006 /* PeerNetworkManager.swift in Sources */,
+				C00000000000000000000007 /* NearbyInteractionManager.swift in Sources */,
+				C00000000000000000000008 /* RootView.swift in Sources */,
+				C00000000000000000000009 /* SetupView.swift in Sources */,
+				C0000000000000000000000A /* DirectionView.swift in Sources */,
+				C0000000000000000000000B /* ChatView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E00000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C0000000000000000000000C /* ConnectionIdentityTests.swift in Sources */,
+				C0000000000000000000000D /* FrameCodecTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D00000000000000000000002 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = A00000000000000000000002 /* CellularChat */; targetProxy = D00000000000000000000001 /* PBXContainerItemProxy */; };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		F00000000000000000000004 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; COPY_PHASE_STRIP = NO; DEBUG_INFORMATION_FORMAT = dwarf; ENABLE_TESTABILITY = YES; GCC_C_LANGUAGE_STANDARD = gnu17; GCC_OPTIMIZATION_LEVEL = 0; IPHONEOS_DEPLOYMENT_TARGET = 16.0; MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE; ONLY_ACTIVE_ARCH = YES; SDKROOT = iphoneos; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; }; name = Debug; };
+		F00000000000000000000005 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; COPY_PHASE_STRIP = NO; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; ENABLE_NS_ASSERTIONS = NO; GCC_C_LANGUAGE_STANDARD = gnu17; IPHONEOS_DEPLOYMENT_TARGET = 16.0; MTL_ENABLE_DEBUG_INFO = NO; SDKROOT = iphoneos; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_OPTIMIZATION_LEVEL = "-O"; VALIDATE_PRODUCT = YES; }; name = Release; };
+		F00000000000000000000006 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; ENABLE_PREVIEWS = YES; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = CellularChat/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 16.0; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks"; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.example.CellularChat; PRODUCT_NAME = "$(TARGET_NAME)"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Debug; };
+		F00000000000000000000007 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = CellularChat/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 16.0; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks"; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.example.CellularChat; PRODUCT_NAME = "$(TARGET_NAME)"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Release; };
+		F00000000000000000000008 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 16.0; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks"; PRODUCT_BUNDLE_IDENTIFIER = com.example.CellularChatTests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CellularChat.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CellularChat"; }; name = Debug; };
+		F00000000000000000000009 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 16.0; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks"; PRODUCT_BUNDLE_IDENTIFIER = com.example.CellularChatTests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CellularChat.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CellularChat"; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F00000000000000000000001 /* Build configuration list for PBXProject "CellularChat" */ = {isa = XCConfigurationList; buildConfigurations = (F00000000000000000000004 /* Debug */, F00000000000000000000005 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		F00000000000000000000002 /* Build configuration list for PBXNativeTarget "CellularChat" */ = {isa = XCConfigurationList; buildConfigurations = (F00000000000000000000006 /* Debug */, F00000000000000000000007 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		F00000000000000000000003 /* Build configuration list for PBXNativeTarget "CellularChatTests" */ = {isa = XCConfigurationList; buildConfigurations = (F00000000000000000000008 /* Debug */, F00000000000000000000009 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		H00000000000000000000001 /* XCRemoteSwiftPackageReference "halfmoon-design" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/halfmoon-project/halfmoon-design.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.4.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		H00000000000000000000002 /* HalfmoonTokens */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = H00000000000000000000001 /* XCRemoteSwiftPackageReference "halfmoon-design" */;
+			productName = HalfmoonTokens;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A00000000000000000000001 /* Project object */;
+}

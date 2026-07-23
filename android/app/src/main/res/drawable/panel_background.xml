@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/hm_bg_default" />
+    <corners android:radius="@dimen/hm_radius_xl" />
+    <stroke
+        android:width="1dp"
+        android:color="@color/hm_border_default" />
+    <padding
+        android:left="@dimen/hm_space_4"
+        android:top="@dimen/hm_space_4"
+        android:right="@dimen/hm_space_4"
+        android:bottom="@dimen/hm_space_4" />
+</shape>
