@@ -6,7 +6,6 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.util.AttributeSet
 import android.view.View
-import com.cellularchat.app.ranging.RangingReading
 
 class DirectionView @JvmOverloads constructor(
     context: Context,
@@ -28,8 +27,12 @@ class DirectionView @JvmOverloads constructor(
     }
     private var azimuth: Double? = null
 
-    fun setReading(reading: RangingReading) {
-        azimuth = reading.azimuthDegrees
+    /**
+     * Sets the direction to draw. Only ever called with a fresh platform angle
+     * sample (PROTOCOL_V2.md §12); null clears the arrow (never synthesized).
+     */
+    fun setAzimuth(azimuthDegrees: Double?) {
+        azimuth = azimuthDegrees
         invalidate()
     }
 

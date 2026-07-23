@@ -1,18 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!--
+        Location policy (IMPLEMENTATION_PLAN.md §8): this app derives physical
+        proximity from BLE RSSI and Wi-Fi Aware distance, so it does NOT assert
+        usesPermissionFlags="neverForLocation" on either radio scan permission.
+        Because proximity inference is a location-derivable signal, we request
+        ACCESS_FINE_LOCATION and gate scanning on it at runtime.
+    -->
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
-    <uses-permission android:name="android.permission.RANGING" />
-    <uses-permission
-        android:name="android.permission.UWB_RANGING"
-        android:maxSdkVersion="35" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
 
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RANGING" />
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <uses-feature
+        android:name="android.hardware.wifi.aware"
+        android:required="false" />
     <uses-feature
         android:name="android.hardware.uwb"
         android:required="false" />
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="true" />
 
     <application
         android:allowBackup="false"
@@ -23,8 +43,8 @@
         android:theme="@style/AppTheme">
 
         <activity
-            android:name=".MainActivity"
-            android:configChanges="orientation|screenSize"
+            android:name=".ui.MainActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -32,11 +52,11 @@
             </intent-filter>
         </activity>
 
-        <provider
-            android:name=".files.ReceivedFileProvider"
-            android:authorities="${applicationId}.files"
+        <service
+            android:name=".background.FindForegroundService"
             android:exported="false"
-            android:grantUriPermissions="true" />
+            android:foregroundServiceType="connectedDevice" />
+
     </application>
 
 </manifest>
