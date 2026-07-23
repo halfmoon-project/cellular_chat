@@ -33,10 +33,10 @@ import com.cellularchat.app.identity.PairStore
 import com.cellularchat.app.pairing.BlePairing
 import com.cellularchat.app.pairing.InvitationFactory
 import com.cellularchat.app.pairing.PairingCoordinator
+import com.cellularchat.app.pairing.PairingHandle
 import com.cellularchat.app.ranging.ProximityBand
 import com.cellularchat.app.transport.AndroidCapabilityProvider
 import com.google.zxing.integration.android.IntentIntegrator
-import java.io.Closeable
 
 /**
  * Single-activity finder UI (classic Views, no Compose; IMPLEMENTATION_PLAN.md
@@ -49,8 +49,7 @@ class MainActivity : Activity() {
 
     private lateinit var store: PairStore
     private lateinit var container: LinearLayout
-    private var pairingHandle: Closeable? = null
-    private var pairingCoordinator: PairingCoordinator? = null
+    private var pairingHandle: PairingHandle? = null
 
     private val findObserver = FindController.Observer { state -> runOnUiThread { onFindState(state) } }
 
@@ -163,7 +162,6 @@ class MainActivity : Activity() {
 
         if (!ensurePairingPermissions()) return
         val events = pairingEvents()
-        pairingCoordinator = null
         pairingHandle = runCatching {
             BlePairing.startInviter(this, store, invitation, aliasText(aliasInput), events)
         }.getOrNull()
@@ -214,7 +212,7 @@ class MainActivity : Activity() {
                 AlertDialog.Builder(this@MainActivity)
                     .setMessage(getString(R.string.pair_fingerprint, display))
                     .setNegativeButton(android.R.string.cancel) { _, _ -> cancelPairing() }
-                    .setPositiveButton(R.string.pair_confirm) { _, _ -> pairingCoordinator?.confirmFingerprint() }
+                    .setPositiveButton(R.string.pair_confirm) { _, _ -> pairingHandle?.confirmFingerprint() }
                     .setCancelable(false)
                     .show()
             }
@@ -249,9 +247,10 @@ class MainActivity : Activity() {
         container.findViewWithTag<EditText>("paste")
 
     private fun cancelPairing() {
-        pairingCoordinator?.cancel()
-        pairingCoordinator = null
-        pairingHandle?.let { runCatching { it.close() } }
+        pairingHandle?.let {
+            runCatching { it.cancel() }
+            runCatching { it.close() }
+        }
         pairingHandle = null
     }
 

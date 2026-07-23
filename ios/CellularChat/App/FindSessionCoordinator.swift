@@ -23,6 +23,13 @@ final class FindSessionCoordinator: ObservableObject {
     private var activeTransport: PeerTransport?
     private var cancellables: Set<AnyCancellable> = []
 
+    // §10 recovery loop: remember what we are finding so a lost link can back off
+    // and re-enter transport search until the find deadline passes.
+    private var activePair: PairRecord?
+    private var deadline: Date?
+    private var retryBackoff = BoundedBackoff()
+    private var retryTask: Task<Void, Never>?
+
     init(pairStore: PairStore) {
         self.pairStore = pairStore
         background.onExpired = { [weak self] in self?.apply(.deadline, reason: .expired) }
@@ -59,11 +66,14 @@ final class FindSessionCoordinator: ObservableObject {
     func arm(pair: PairRecord, duration: TimeInterval = FindLiveActivityController.defaultDuration) {
         guard !pair.revoked else { return }
         selectedPair = pair
+        activePair = pair
+        deadline = Date().addingTimeInterval(duration)
+        retryBackoff.reset()
         ranging.stop()
         apply(.arm, reason: nil)
         background.arm(duration: duration)
         apply(.armed, reason: nil)
-        beginSearch(pair: pair, duration: duration)
+        beginSearch(pair: pair)
     }
 
     func stop() {
@@ -73,7 +83,9 @@ final class FindSessionCoordinator: ObservableObject {
 
     // MARK: discovery → session
 
-    private func beginSearch(pair: PairRecord, duration: TimeInterval) {
+    private func beginSearch(pair: PairRecord) {
+        let remaining = deadline?.timeIntervalSinceNow ?? 0
+        guard remaining > 0 else { apply(.deadline, reason: .expired); return }
         guard let root = try? pairStore.pairRoot(pair) else {
             apply(.fatal, reason: .radioUnavailable); return
         }
@@ -100,10 +112,12 @@ final class FindSessionCoordinator: ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             guard let winner = await self.transports.select(transports: all) else {
-                await MainActor.run { self.apply(.signalLost, reason: .transportLost) }
+                // No transport this pass: stay in searching (the honest "not yet
+                // in direct radio range") and retry with backoff until the deadline.
+                await MainActor.run { self.scheduleSearchRetry() }
                 return
             }
-            await MainActor.run { self.startSession(over: winner, pair: pair, root: root, duration: duration) }
+            await MainActor.run { self.startSession(over: winner, pair: pair, root: root, duration: remaining) }
         }
     }
 
@@ -120,7 +134,10 @@ final class FindSessionCoordinator: ObservableObject {
             let runner = try SessionRunner(
                 role: .initiator, pair: pair, pairRoot: root, localStaticPriv: Array(priv),
                 transport: transport, localCaps: localCaps, ranging: ranging, findDeadline: deadline)
-            runner.onAuthenticated = { [weak self] in self?.apply(.authenticated, reason: nil) }
+            runner.onAuthenticated = { [weak self] in
+                self?.retryBackoff.reset()   // link re-established; start backoff fresh
+                self?.apply(.authenticated, reason: nil)
+            }
             runner.onConnected = { [weak self] in self?.apply(.rangingStarting, reason: nil) }
             runner.onFatal = { [weak self] reason in self?.handleFatal(reason) }
             self.runner = runner
@@ -152,11 +169,55 @@ final class FindSessionCoordinator: ObservableObject {
             teardown(reason: reason)
             apply(.fatal, reason: reason)
         } else {
-            apply(.signalLost, reason: reason)
+            enterSignalLostAndRetry(reason: reason)
+        }
+    }
+
+    // MARK: §10 recovery loop
+
+    /// A lost link (not an auth/identity fault) drops to signalLost, tears down
+    /// the dead transport while keeping the find session, then backs off and
+    /// re-enters transport search until the find deadline (§10).
+    private func enterSignalLostAndRetry(reason: ReasonCode) {
+        apply(.signalLost, reason: reason)
+        guard state == .signalLost else { return }   // ignore from an unlinked state
+        runner = nil
+        transports.teardown(reason: reason)
+        activeTransport = nil
+        ranging.stop()
+        apply(.retryWait, reason: reason)            // signalLost -> retryWait
+        scheduleRetry(fromRetryWait: true)
+    }
+
+    /// Discovery found no transport this pass; retry from `searching`.
+    private func scheduleSearchRetry() { scheduleRetry(fromRetryWait: false) }
+
+    private func scheduleRetry(fromRetryWait: Bool) {
+        guard let pair = activePair, let deadline, Date() < deadline else {
+            apply(.deadline, reason: .expired); return
+        }
+        let expected: FindState = fromRetryWait ? .retryWait : .searching
+        guard state == expected else { return }
+        let delay = retryBackoff.next()
+        retryTask?.cancel()
+        retryTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard let self, !Task.isCancelled else { return }
+            await MainActor.run {
+                guard self.state == expected else { return }
+                guard let deadline = self.deadline, Date() < deadline else {
+                    self.apply(.deadline, reason: .expired); return
+                }
+                if fromRetryWait { self.apply(.retryElapsed, reason: nil) }   // retryWait -> searching
+                guard self.state == .searching else { return }
+                self.beginSearch(pair: pair)
+            }
         }
     }
 
     private func teardown(reason: ReasonCode) {
+        retryTask?.cancel()
+        retryTask = nil
         runner?.sendDisconnect(reason: reason)
         runner = nil
         transports.teardown(reason: reason)

@@ -40,11 +40,13 @@ final class PairingCoordinator: ObservableObject {
     // MARK: Inviter (role A)
 
     /// Create a fresh single-use invitation and render its QR + copyable string.
-    func makeInvitation() -> Invitation {
-        var pairId = [UInt8](repeating: 0, count: 16)
-        var secret = [UInt8](repeating: 0, count: 32)
-        _ = SecRandomCopyBytes(kSecRandomDefault, 16, &pairId)
-        _ = SecRandomCopyBytes(kSecRandomDefault, 32, &secret)
+    /// Returns nil (and fails the step) if the CSPRNG cannot produce key material.
+    func makeInvitation() -> Invitation? {
+        guard let pairId = try? secureRandomBytes(count: 16),
+              let secret = try? secureRandomBytes(count: 32) else {
+            step = .failed("보안 난수를 생성할 수 없습니다.")
+            return nil
+        }
         let invite = Invitation(pairId: pairId, secret: secret,
                                 createdAt: UInt64(Date().timeIntervalSince1970))
         self.invitation = invite

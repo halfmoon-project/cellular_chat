@@ -21,7 +21,6 @@ final class SessionRunner {
     private let localCaps: CapabilitySet
     private let ranging: RangingCoordinator
     private let findDeadline: UInt64
-    private let attemptId: UInt64 = 0
 
     private var session: SecureSession?
     private weak var transport: PeerTransport?
@@ -44,9 +43,7 @@ final class SessionRunner {
         let ephemeral = Array(Curve25519.KeyAgreement.PrivateKey().rawRepresentation)
         var sid: [UInt8]? = nil
         if role == .initiator {
-            var s = [UInt8](repeating: 0, count: 16)
-            _ = SecRandomCopyBytes(kSecRandomDefault, 16, &s)
-            sid = s
+            sid = try secureRandomBytes(count: 16)
         }
         session = try SecureSession(
             role: role == .initiator ? .initiator : .responder,
@@ -54,14 +51,18 @@ final class SessionRunner {
             localStaticPriv: localStaticPriv, pinnedPeerStaticPub: pair.peerStaticPub,
             ephemeralPriv: ephemeral, sid: sid)
 
-        // Wire ranging outbound messages into the session AEAD.
-        ranging.sendNiToken = { [weak self] data in self?.sendRanging(.niToken, data: data) }
-        ranging.sendAppleShareable = { [weak self] data in self?.sendRanging(.appleShareable, data: data) }
+        // Wire ranging outbound messages into the session AEAD. The coordinator
+        // owns the monotonic attemptId and stamps it into every ranging body.
+        ranging.sendMessage = { [weak self] type, body in self?.send(type, body: body) }
     }
 
     func start() {
         transport?.onRecord = { [weak self] record in Task { @MainActor in self?.handle(record) } }
         transport?.onClosed = { [weak self] reason in Task { @MainActor in self?.onFatal?(reason) } }
+        // Feed live BLE RSSI into the §12 proximity fallback (finding: bleRssi).
+        if let ble = transport as? BLETransport {
+            ble.onRSSI = { [weak self] rssi in Task { @MainActor in self?.ranging.feedRSSI(rssi) } }
+        }
         if role == .initiator { emitHandshake() }   // IKpsk2 message 1
     }
 
@@ -138,29 +139,23 @@ final class SessionRunner {
             if !recvReady {
                 recvReady = true
                 onConnected?()
-                ranging.start(local: localCaps, peer: peerCaps)
+                ranging.start(local: localCaps, peer: peerCaps, isInitiator: role == .initiator)
             }
         case .ping:
             if let n = body.value(forKey: 1)?.asUInt {
                 send(.pong, body: .map([CBORPair(.uint(1), .uint(n))]))
             }
-        case .niToken:
-            if let data = body.value(forKey: 2)?.asBytes { ranging.receiveNiToken(Data(data)) }
-        case .appleConfig:
-            if let data = body.value(forKey: 2)?.asBytes { ranging.receiveAppleConfig(Data(data)) }
+        case .rangingOffer, .rangingAccept, .rangingStart, .rangingStop, .rangingError,
+             .niToken, .appleConfig, .appleShareable, .oobData:
+            // The §8 ranging exchange (offer/accept/start/stop/error) and its
+            // material are driven by the coordinator, which owns attemptId (§12).
+            ranging.handleSessionMessage(type, body: body)
         case .disconnect:
             let reason = body.value(forKey: 1)?.asUInt.flatMap { ReasonCode(rawValue: $0) } ?? .normal
             onFatal?(reason)
         default:
-            break   // ranging_offer/accept/start/stop, find_* handled at coordinator level
+            break   // transport_upgrade/ack, find_* not routed to the state machine yet
         }
-    }
-
-    private func sendRanging(_ type: SessionMsgType, data: Data) {
-        send(type, body: .map([
-            CBORPair(.uint(1), .uint(attemptId)),
-            CBORPair(.uint(2), .bytes(Array(data))),
-        ]))
     }
 
     private func send(_ type: SessionMsgType, body: CBOR) {

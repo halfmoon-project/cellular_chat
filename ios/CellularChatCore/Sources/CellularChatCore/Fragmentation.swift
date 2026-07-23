@@ -97,6 +97,19 @@ public final class FragmentReassembler {
         }
     }
 
+    /// Rejects a FIRST-only stalled reassembly (§9 10-second budget) even when no
+    /// further fragment ever arrives. The transport arms a timer to poll this; it
+    /// throws `fragTimeout` and clears state once the in-progress record is too
+    /// old, and is a no-op while idle. Complements the in-line check in `push`,
+    /// which can only fire when a subsequent fragment arrives.
+    public func checkStallTimeout() throws {
+        guard inProgress else { return }
+        if clock() - startTime > FragmentReassembler.timeoutSeconds {
+            reset()
+            throw ProtocolError.fragTimeout
+        }
+    }
+
     private func finish() throws -> [UInt8] {
         if buffer.count != expectedTotal { return try fail(.fragLengthMismatch) }
         let record = buffer

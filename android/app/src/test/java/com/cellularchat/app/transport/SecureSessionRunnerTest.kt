@@ -1,5 +1,6 @@
 package com.cellularchat.app.transport
 
+import com.cellularchat.app.core.ReasonCodes
 import com.cellularchat.app.core.cbor.CborInt
 import com.cellularchat.app.core.cbor.CborMap
 import com.cellularchat.app.core.cbor.cborMapOf
@@ -126,5 +127,46 @@ class SecureSessionRunnerTest {
         initiatorRunner.start()
 
         assertTrue("responder rejected the unpinned initiator", responderClosed)
+    }
+
+    @Test
+    fun nonSessionReadyFirstMessageTearsDownResponder() {
+        val initPriv = X25519.generatePrivate()
+        val respPriv = X25519.generatePrivate()
+        val initPub = X25519.derivePublic(initPriv)
+        val respPub = X25519.derivePublic(respPriv)
+        val pairRoot = ByteArray(32).also { random.nextBytes(it) }
+        val pairId = ByteArray(16).also { random.nextBytes(it) }
+        val sid = ByteArray(16).also { random.nextBytes(it) }
+
+        val initiatorTransport = LinkedTransport("ble")
+        val responderTransport = LinkedTransport("ble")
+        initiatorTransport.peer = responderTransport
+        responderTransport.peer = initiatorTransport
+
+        val initiatorSession = SecureSession.initiator(pairId, "ble", initPriv, respPub, pairRoot, sid)
+        val responderSession = SecureSession.responder(pairId, "ble", respPriv, initPub, pairRoot)
+
+        var responderClosedReason: Int? = null
+        val responderRunner = SecureSessionRunner(
+            responderTransport, responderSession, isInitiator = false, sessionReadyBody = { caps() },
+            events = object : SecureSessionRunner.Events {
+                override fun onAuthenticated(peerSessionReady: SessionEnvelope) = Unit
+                override fun onSessionMessage(envelope: SessionEnvelope) = Unit
+                override fun onClosed(reason: Int) { responderClosedReason = reason }
+            },
+        )
+        responderRunner.start()
+
+        // A hand-driven initiator that completes the handshake but then sends a
+        // ping (not session_ready) as its first transport message.
+        initiatorTransport.setListener(object : PeerTransport.Listener {
+            override fun onRecord(record: ByteArray) { initiatorSession.readHandshakeResponse(record) }
+            override fun onLinkLost(reason: Int) = Unit
+        })
+        initiatorTransport.send(initiatorSession.startHandshake())
+        initiatorTransport.send(initiatorSession.send(SessionMsgType.PING, cborMapOf(1L to CborInt(1))))
+
+        assertEquals(ReasonCodes.PROTOCOL_ERROR, responderClosedReason)
     }
 }

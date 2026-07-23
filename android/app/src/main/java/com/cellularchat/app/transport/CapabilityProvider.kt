@@ -1,10 +1,12 @@
 package com.cellularchat.app.transport
 
+import android.annotation.TargetApi
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.wifi.aware.WifiAwareManager
 import android.os.Build
 import com.cellularchat.app.core.protocol.CapabilitySet
+import com.cellularchat.app.ranging.RawUwbController
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 
@@ -18,9 +20,13 @@ fun interface CapabilityProvider {
 }
 
 /** Runtime capability checks — never OS-version guesses (§11). */
+@TargetApi(36)
 class AndroidCapabilityProvider(
     private val context: Context,
     private val appVersion: String,
+    // Injectable so the interop path can be unit-tested with a fake profile; the
+    // production check reflects the raw-UWB RangingCapabilities, not FEATURE_UWB.
+    private val appleInteropUwbSupported: () -> Boolean = { RawUwbController.interopProfileSupported(context) },
 ) : CapabilityProvider {
     override fun capabilities(): CapabilitySet {
         val pm = context.packageManager
@@ -43,7 +49,7 @@ class AndroidCapabilityProvider(
             // RangingCapabilities; advertised conservatively here.
             uwbAzimuth = false,
             uwbElevation = false,
-            appleInteropUwb = hasUwb,
+            appleInteropUwb = appleInteropUwbSupported(),
             niEdm = false,
             wifiRtt = false,
             backgroundRanging = false,

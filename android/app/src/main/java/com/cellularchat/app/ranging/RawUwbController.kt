@@ -212,4 +212,34 @@ class RawUwbController(
             capabilitiesRegistered = false
         }
     }
+
+    companion object {
+        private val NO_CALLBACKS = object : Callbacks {
+            override fun onMeasurement(distanceMeters: Double?, azimuthDegrees: Double?, elevationDegrees: Double?) = Unit
+            override fun onError(rangingErrorCode: Int, detail: String) = Unit
+            override fun onStopped() = Unit
+        }
+
+        // The device's raw-UWB profile is a stable, process-level fact. A single
+        // probe controller registers the RangingCapabilities callback once (no
+        // per-call leak) and its async result populates before Find reaches
+        // session_ready.
+        @Volatile
+        private var probe: RawUwbController? = null
+
+        /**
+         * True only when the raw-UWB stack reports support for the Apple interop
+         * profile (§11 `appleInteropUwb`) — the same [isUwbUsable] gate, never a
+         * bare `FEATURE_UWB` presence check. Conservative (false) until the
+         * capabilities callback has fired, so it never over-claims.
+         */
+        @TargetApi(36)
+        fun interopProfileSupported(context: Context): Boolean {
+            val controller = probe ?: synchronized(this) {
+                probe ?: RawUwbController(context.applicationContext, NO_CALLBACKS).also { probe = it }
+            }
+            controller.ensureCapabilities()
+            return controller.isUwbUsable()
+        }
+    }
 }

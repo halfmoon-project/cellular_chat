@@ -83,6 +83,11 @@ class SecureSessionRunner(
 
     private fun onTransport(record: ByteArray) {
         val envelope = session.receive(record) ?: return // ignored msgType >= 128
+        // §8: the initiator's first transport message MUST be session_ready. Any
+        // other message before authentication is a fatal protocol error (§14).
+        if (!authenticated && envelope.msgType != SessionMsgType.SESSION_READY) {
+            throw ProtocolException("first session message must be session_ready", ReasonCodes.PROTOCOL_ERROR)
+        }
         if (envelope.msgType == SessionMsgType.SESSION_READY) {
             if (!isInitiator && !sentReady) sendReady() // responder replies before anything else.
             if (!authenticated) {

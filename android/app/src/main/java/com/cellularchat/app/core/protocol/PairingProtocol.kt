@@ -146,6 +146,17 @@ class PairingProtocol private constructor(
     fun sendAbort(reason: Int): ByteArray =
         sendPairing(PairingMsgType.PAIR_ABORT, cborMapOf(1L to CborInt(reason.toLong())))
 
+    /**
+     * Erases the ephemeral pairing secrets this protocol holds after commit or
+     * abort (§4/§6): the pairing PSK and the staged pairRoot. The persisted
+     * PairRecord keeps its own copies of any retained material, so callers MUST
+     * copy `stagedPairData.pairRoot` before wiping.
+     */
+    fun wipe() {
+        pairingPsk.fill(0)
+        staged?.pairRoot?.fill(0)
+    }
+
     /** Consume a pairing transport record and apply §6/§14 validation. */
     fun receive(record: ByteArray): Received {
         val envelope = decryptPairing(record)

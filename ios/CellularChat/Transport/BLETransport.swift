@@ -28,6 +28,8 @@ final class BLETransport: NSObject, PeerTransport {
 
     var onRecord: (([UInt8]) -> Void)?
     var onClosed: ((ReasonCode) -> Void)?
+    /// Live BLE RSSI samples for the §12 proximity fallback (central role only).
+    var onRSSI: ((Double) -> Void)?
 
     private let queue = DispatchQueue(label: "com.cellularchat.ble")
     private var central: CBCentralManager?
@@ -45,6 +47,17 @@ final class BLETransport: NSObject, PeerTransport {
 
     private var connectContinuation: CheckedContinuation<Result<Void, TransportFailure>, Never>?
     private var didConnect = false
+    // §7/§9 rendezvous filter: the central link is usable only once the peer
+    // token is verified (advert service data OR the rendezvous read) AND both
+    // characteristics are ready — never before, closing the callback race.
+    private var tokenVerified = false
+    private var notifyReady = false
+
+    // §9/§12 monitors, armed once connected (central-side reads RSSI; both sides
+    // poll the reassembly stall budget). Accessed only on `queue`.
+    private var rssiTimer: DispatchSourceTimer?
+    private var stallTimer: DispatchSourceTimer?
+    private let rssiInterval: TimeInterval = 1.5
 
     init(role: Role,
          localToken: @escaping () -> [UInt8],
@@ -85,6 +98,7 @@ final class BLETransport: NSObject, PeerTransport {
     func disconnect(reason: ReasonCode) {
         queue.async { [weak self] in
             guard let self else { return }
+            self.stopMonitors()
             if let p = self.peripheral { self.central?.cancelPeripheralConnection(p) }
             self.peripheralMgr?.stopAdvertising()
             self.central?.stopScan()
@@ -97,8 +111,55 @@ final class BLETransport: NSObject, PeerTransport {
     private func finishConnect(_ result: Result<Void, TransportFailure>) {
         guard let cont = connectContinuation else { return }
         connectContinuation = nil
-        if case .success = result { didConnect = true }
+        if case .success = result {
+            didConnect = true
+            startStallMonitor()
+            if role == .central { startRSSIMonitoring() }
+        }
         cont.resume(returning: result)
+    }
+
+    /// The central link is usable only once we can write (inbox), receive
+    /// (outbox notify), AND have verified the peer token (§7/§9). Gating on
+    /// `tokenVerified` closes the notification/read callback race.
+    private func maybeFinishConnect() {
+        guard !didConnect, tokenVerified, inboxChar != nil, notifyReady else { return }
+        finishConnect(.success(()))
+    }
+
+    // MARK: RSSI + reassembly-stall monitors (§9/§12)
+
+    private func startRSSIMonitoring() {
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + rssiInterval, repeating: rssiInterval)
+        timer.setEventHandler { [weak self] in self?.peripheral?.readRSSI() }
+        rssiTimer = timer
+        timer.resume()
+    }
+
+    /// Polls the §9 10-second reassembly budget so a FIRST-only stalled record
+    /// tears the link down even when no further fragment ever arrives.
+    private func startStallMonitor() {
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + 1, repeating: 1)
+        timer.setEventHandler { [weak self] in self?.checkReassemblyStall() }
+        stallTimer = timer
+        timer.resume()
+    }
+
+    private func checkReassemblyStall() {
+        do {
+            try reassembler.checkStallTimeout()
+            try peerReassembler.checkStallTimeout()
+        } catch {
+            stopMonitors()
+            onClosed?(.protocolError)   // §9/§14: a stalled reassembly is fatal
+        }
+    }
+
+    private func stopMonitors() {
+        rssiTimer?.cancel(); rssiTimer = nil
+        stallTimer?.cancel(); stallTimer = nil
     }
 
     /// Fragment one record into ATT-sized writes/notifications (§9).
@@ -151,6 +212,7 @@ extension BLETransport: CBCentralManagerDelegate {
         if let sd = advertisementData[CBAdvertisementDataServiceDataKey] as? [CBUUID: Data],
            let tokenData = sd[BLEIDs.service] {
             guard acceptsPeerToken(Array(tokenData)) else { return }
+            tokenVerified = true   // §7/§9 filter satisfied from the advertisement
         }
         central.stopScan()
         self.peripheral = peripheral
@@ -167,6 +229,7 @@ extension BLETransport: CBCentralManagerDelegate {
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        stopMonitors()
         onClosed?(.transportLost)
     }
 }
@@ -188,6 +251,7 @@ extension BLETransport: CBPeripheralDelegate {
             default: break
             }
         }
+        maybeFinishConnect()
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
@@ -200,7 +264,8 @@ extension BLETransport: CBPeripheralDelegate {
                 finishConnect(.failure(.failed))
                 return
             }
-            if inboxChar != nil { finishConnect(.success(())) }
+            tokenVerified = true
+            maybeFinishConnect()
         case BLEIDs.outbox:
             deliver(fragment: Array(data), into: &reassembler)
         default:
@@ -209,10 +274,17 @@ extension BLETransport: CBPeripheralDelegate {
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
-        if characteristic.uuid == BLEIDs.outbox, inboxChar != nil, !didConnect {
-            // Ready once we can both write and receive; token check may already have passed.
-            finishConnect(.success(()))
+        // Never a success trigger on its own: the token must be verified first
+        // (§7/§9), which `maybeFinishConnect` enforces.
+        if characteristic.uuid == BLEIDs.outbox {
+            notifyReady = true
+            maybeFinishConnect()
         }
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
+        guard error == nil else { return }
+        onRSSI?(RSSI.doubleValue)
     }
 }
 

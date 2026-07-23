@@ -15,6 +15,8 @@ import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelUuid
 import com.cellularchat.app.core.ReasonCodes
 import com.cellularchat.app.transport.PeerTransport
@@ -35,7 +37,11 @@ class BleGattPeripheral(
 
     override val tag: String = BleConstants.TRANSPORT_TAG
 
-    private val fragments = BleFragmentChannel()
+    private val handler = Handler(Looper.getMainLooper())
+    private val fragments = BleFragmentChannel(
+        scheduleTimeout = { delay, action -> handler.postDelayed(action, delay) },
+        onStalled = { listener?.onLinkLost(ReasonCodes.PROTOCOL_ERROR) },
+    )
     private val manager = context.getSystemService(BluetoothManager::class.java)
     private var advertiser: BluetoothLeAdvertiser? = null
     private var server: BluetoothGattServer? = null
@@ -212,6 +218,7 @@ class BleGattPeripheral(
     }
 
     override fun close() {
+        handler.removeCallbacksAndMessages(null)
         runCatching { advertiser?.stopAdvertising(advertiseCallback) }
         runCatching { central?.let { server?.cancelConnection(it) } }
         runCatching { server?.close() }

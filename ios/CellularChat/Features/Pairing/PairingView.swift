@@ -145,8 +145,8 @@ struct PairingView: View {
     // MARK: actions
 
     private func startInvite() {
+        guard coordinator.makeInvitation() != nil else { return }
         mode = .invite
-        _ = coordinator.makeInvitation()
         // Inviter is the BLE advertiser/peripheral; NNpsk0 with the invitation
         // secret is the real authenticator, so the rendezvous token is unused here.
         let transport = BLETransport(role: .peripheral,

@@ -16,6 +16,21 @@ private class TransportPairingLink(private val transport: PeerTransport) : Pairi
 }
 
 /**
+ * Live handle to an in-progress BLE pairing. The UI holds exactly this object
+ * and forwards the user's fingerprint confirm/cancel to the running
+ * [PairingCoordinator] through it, so the coordinator can never be left
+ * unwired (the confirm path drives [PairingCoordinator.maybeCommit]).
+ */
+class PairingHandle internal constructor(
+    private val coordinator: PairingCoordinator,
+    private val transport: Closeable,
+) : Closeable {
+    fun confirmFingerprint() = coordinator.confirmFingerprint()
+    fun cancel() = coordinator.cancel()
+    override fun close() = transport.close()
+}
+
+/**
  * Wires a BLE GATT link to a [PairingCoordinator] for the initial NNpsk0
  * pairing (PROTOCOL_V2.md §6/§9). The inviter (role A) is the BLE peripheral;
  * the joiner (role B) is the central. The pairId is never advertised (§4), so
@@ -29,7 +44,7 @@ object BlePairing {
         invitation: Invitation,
         alias: String,
         events: PairingCoordinator.Events,
-    ): Closeable {
+    ): PairingHandle {
         val coordinator = PairingCoordinator(store, events)
         // A random 16-byte advertising nonce; not identity, only a rendezvous hint.
         val nonce = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
@@ -39,7 +54,7 @@ object BlePairing {
         if (!peripheral.start()) {
             events.onAborted(ReasonCodes.RADIO_UNAVAILABLE, "BLE 광고를 시작할 수 없습니다.")
         }
-        return Closeable { peripheral.close() }
+        return PairingHandle(coordinator, Closeable { peripheral.close() })
     }
 
     fun startJoiner(
@@ -48,7 +63,7 @@ object BlePairing {
         invitationText: String,
         alias: String,
         events: PairingCoordinator.Events,
-    ): Closeable {
+    ): PairingHandle {
         val coordinator = PairingCoordinator(store, events)
         lateinit var central: BleGattCentral
         central = BleGattCentral(context, emptyList(), onLinkReady = {
@@ -58,7 +73,7 @@ object BlePairing {
         if (!central.start()) {
             events.onAborted(ReasonCodes.RADIO_UNAVAILABLE, "BLE 검색을 시작할 수 없습니다.")
         }
-        return Closeable { central.close() }
+        return PairingHandle(coordinator, Closeable { central.close() })
     }
 
     private fun wire(

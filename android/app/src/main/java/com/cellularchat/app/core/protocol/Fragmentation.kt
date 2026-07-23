@@ -67,7 +67,7 @@ object Fragmentation {
 
 /** Stateful reassembler; [offer] returns the completed record on the FINAL fragment. */
 class Reassembler(
-    private val timeoutMillis: Long = 10_000,
+    private val timeoutMillis: Long = TIMEOUT_MILLIS,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
     private var buffer: ByteArrayOutputStream? = null
@@ -75,6 +75,18 @@ class Reassembler(
     private var received = 0
     private var expectedCounter = 0
     private var startMillis = 0L
+
+    /** True while a record is partially reassembled (a FIRST without its FINAL). */
+    val reassemblyInProgress: Boolean get() = buffer != null
+
+    /**
+     * Enforces the §9 10-second reassembly deadline even when no further fragment
+     * arrives (a peer that sent only a FIRST and went silent). Throws the same
+     * fatal `timeout` as [offer]; a no-op when nothing is in progress.
+     */
+    fun checkTimeout(now: Long = clock()) {
+        if (buffer != null && now - startMillis > timeoutMillis) throw FragmentException("timeout")
+    }
 
     fun offer(fragment: ByteArray): ByteArray? {
         if (fragment.isEmpty()) throw FragmentException("emptyChunk")
@@ -127,5 +139,9 @@ class Reassembler(
         totalLen = 0
         received = 0
         expectedCounter = 0
+    }
+
+    companion object {
+        const val TIMEOUT_MILLIS = 10_000L
     }
 }

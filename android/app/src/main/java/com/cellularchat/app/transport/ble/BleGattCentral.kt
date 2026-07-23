@@ -15,6 +15,8 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelUuid
 import com.cellularchat.app.core.ReasonCodes
 import com.cellularchat.app.transport.PeerTransport
@@ -36,13 +38,20 @@ class BleGattCentral(
 
     override val tag: String = BleConstants.TRANSPORT_TAG
 
-    private val fragments = BleFragmentChannel()
+    private val handler = Handler(Looper.getMainLooper())
+    private val fragments = BleFragmentChannel(
+        scheduleTimeout = { delay, action -> handler.postDelayed(action, delay) },
+        onStalled = { listener?.onLinkLost(ReasonCodes.PROTOCOL_ERROR) },
+    )
     private val manager = context.getSystemService(BluetoothManager::class.java)
     private var scanner: BluetoothLeScanner? = null
     private var gatt: BluetoothGatt? = null
     private var inbox: BluetoothGattCharacteristic? = null
     private var listener: PeerTransport.Listener? = null
     private var ready = false
+    // Set when the advertisement carried no service data: §9 requires reading the
+    // rendezvous characteristic and matching its token before trusting the link.
+    private var verifyViaRendezvous = false
 
     private val writeQueue = ArrayDeque<ByteArray>()
     private var writing = false
@@ -80,8 +89,9 @@ class BleGattCentral(
             // Empty acceptTokens = pairing mode: connect to any peer advertising the
             // service (pairId is never on the air, §4); NNpsk0 then authenticates.
             if (acceptTokens.isNotEmpty() && serviceData != null && !tokenAccepted(serviceData)) return
-            // Service data present+matched, or absent (iOS overflow): connect and
-            // verify via rendezvous read before trusting the link.
+            // Service data present+matched: trust the advertised token. Absent (iOS
+            // overflow) in Find mode: verify via a rendezvous read after connecting.
+            verifyViaRendezvous = acceptTokens.isNotEmpty() && serviceData == null
             stopScan()
             connect(result.device)
         }
@@ -93,6 +103,15 @@ class BleGattCentral(
 
     private fun tokenAccepted(token: ByteArray): Boolean =
         acceptTokens.any { it.size == token.size && it.contentEquals(token) }
+
+    private fun enableOutboxNotifications(g: BluetoothGatt, outbox: BluetoothGattCharacteristic) {
+        runCatching {
+            g.setCharacteristicNotification(outbox, true)
+            val cccd = outbox.getDescriptor(BleConstants.CCCD_UUID)
+            cccd?.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            if (cccd != null) g.writeDescriptor(cccd)
+        }
+    }
 
     private fun connect(device: BluetoothDevice) {
         gatt = runCatching {
@@ -129,12 +148,40 @@ class BleGattCentral(
                 listener?.onLinkLost(ReasonCodes.PROTOCOL_ERROR)
                 return
             }
-            runCatching {
-                g.setCharacteristicNotification(outbox, true)
-                val cccd = outbox.getDescriptor(BleConstants.CCCD_UUID)
-                cccd?.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                if (cccd != null) g.writeDescriptor(cccd)
+            // No advertised token to trust: read the rendezvous characteristic and
+            // match it before enabling notifications (§9). Otherwise proceed.
+            if (verifyViaRendezvous) {
+                val rendezvous = service.getCharacteristic(BleConstants.RENDEZVOUS_UUID)
+                if (rendezvous == null) {
+                    runCatching { g.disconnect() }
+                    listener?.onLinkLost(ReasonCodes.PROTOCOL_ERROR)
+                    return
+                }
+                runCatching { g.readCharacteristic(rendezvous) }
+                return
             }
+            enableOutboxNotifications(g, outbox)
+        }
+
+        override fun onCharacteristicRead(
+            g: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray,
+            status: Int,
+        ) {
+            if (characteristic.uuid != BleConstants.RENDEZVOUS_UUID) return
+            if (!tokenAccepted(value)) {
+                runCatching { g.disconnect() }
+                listener?.onLinkLost(ReasonCodes.TRANSPORT_LOST)
+                return
+            }
+            val outbox = g.getService(BleConstants.SERVICE_UUID)?.getCharacteristic(BleConstants.OUTBOX_UUID)
+            if (outbox == null) {
+                runCatching { g.disconnect() }
+                listener?.onLinkLost(ReasonCodes.PROTOCOL_ERROR)
+                return
+            }
+            enableOutboxNotifications(g, outbox)
         }
 
         override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
@@ -188,11 +235,13 @@ class BleGattCentral(
 
     override fun close() {
         stopScan()
+        handler.removeCallbacksAndMessages(null)
         runCatching { gatt?.disconnect() }
         runCatching { gatt?.close() }
         gatt = null
         inbox = null
         ready = false
+        verifyViaRendezvous = false
     }
 
     private fun hasPermission(permission: String): Boolean =

@@ -71,4 +71,28 @@ final class FragmentTests: XCTestCase {
         clockValue = 11
         assertThrows(.fragTimeout, try reasm.push(frags[1]))
     }
+
+    func testFirstOnlyReassemblyStallRejected() {
+        // A FIRST fragment followed by silence: checkStallTimeout must reject once
+        // the 10-second budget passes, even though no further fragment ever
+        // arrives (§9). The in-line push check cannot fire here.
+        var clockValue: TimeInterval = 0
+        let reasm = FragmentReassembler(clock: { clockValue })
+        let cases = Vectors.loadObject("fragment_vectors.json")["cases"] as! [[String: Any]]
+        let longCase = cases.first { $0["name"] as! String == "longRecordMtu185" }!
+        let record = hexToBytes(longCase["recordHex"] as! String)
+        let frags = Fragmentation.fragment(record: record, mtu: 185)
+        XCTAssertNil(try? reasm.push(frags[0]))          // reassembly in progress
+        XCTAssertNoThrow(try reasm.checkStallTimeout())  // within budget: no-op
+        clockValue = 11
+        assertThrows(.fragTimeout, try reasm.checkStallTimeout())
+        // State is cleared after the throw, so an idle check is a no-op.
+        XCTAssertNoThrow(try reasm.checkStallTimeout())
+    }
+
+    func testStallCheckIdleIsNoOp() {
+        // With no reassembly in progress, the stall check never throws.
+        let reasm = FragmentReassembler(clock: { 9_999 })
+        XCTAssertNoThrow(try reasm.checkStallTimeout())
+    }
 }

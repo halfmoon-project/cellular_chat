@@ -75,6 +75,12 @@ class PairingCoordinator(
             abort(ReasonCodes.EXPIRED, it.message ?: "초대 코드가 올바르지 않습니다.")
             return
         }
+        // A pairId already in the store means this invitation was already consumed
+        // by a prior commit; §4 forbids accepting it again.
+        if (store.get(parsed.pairId) != null) {
+            abort(ReasonCodes.PROTOCOL_ERROR, "이미 사용된 초대입니다.")
+            return
+        }
         val staticPrivate = newStaticPrivate()
         val protocol = PairingProtocol.roleB(
             pairId = parsed.pairId,
@@ -165,12 +171,14 @@ class PairingCoordinator(
         val staged = protocol.stagedPairData ?: return
         val privateKey = localStaticPrivate ?: return
         val peerStatic = if (staged.role == PairingProtocol.Role.A) staged.staticB else staged.staticA
+        // Defensive copies of the retained key material so the subsequent wipe of
+        // the ephemeral pairing state does not zero the persisted record (§4/§6).
         val record = PairRecord(
             pairId = staged.pairId,
             role = staged.role.value.toInt(),
-            localStaticPrivate = privateKey,
+            localStaticPrivate = privateKey.copyOf(),
             peerStaticPublic = peerStatic,
-            pairRoot = staged.pairRoot,
+            pairRoot = staged.pairRoot.copyOf(),
             negotiatedVersion = staged.negotiatedVersion.toInt(),
             alias = alias.ifBlank { "상대" },
             createdAt = clock(),
@@ -179,6 +187,18 @@ class PairingCoordinator(
         store.upsert(record)          // consumed: this pairId will not pair again.
         events.onCommitted(record)
         link?.close()
+        wipe()
+    }
+
+    /** Erase the invitation secret and ephemeral pairing state (§4/§6). */
+    private fun wipe() {
+        invitation?.secret?.fill(0)
+        localStaticPrivate?.fill(0)
+        proto?.wipe()
+        invitation = null
+        localStaticPrivate = null
+        proto = null
+        link = null
     }
 
     private fun start(
@@ -218,5 +238,6 @@ class PairingCoordinator(
         finished = true
         runCatching { link?.close() }
         events.onAborted(reason, detail)
+        wipe()
     }
 }
