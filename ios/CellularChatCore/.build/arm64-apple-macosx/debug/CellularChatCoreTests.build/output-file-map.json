@@ -1,0 +1,89 @@
+{
+  "": {
+    "swift-dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/master.swiftdeps"
+  },
+  "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/CBORTests.swift": {
+    "dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/CBORTests.d",
+    "object": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/CBORTests.swift.o",
+    "swiftmodule": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/CBORTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/CBORTests.swiftdeps",
+    "diagnostics": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/CBORTests.dia"
+  },
+  "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/CapabilityTests.swift": {
+    "dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/CapabilityTests.d",
+    "object": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/CapabilityTests.swift.o",
+    "swiftmodule": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/CapabilityTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/CapabilityTests.swiftdeps",
+    "diagnostics": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/CapabilityTests.dia"
+  },
+  "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/DerivationTests.swift": {
+    "dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/DerivationTests.d",
+    "object": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/DerivationTests.swift.o",
+    "swiftmodule": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/DerivationTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/DerivationTests.swiftdeps",
+    "diagnostics": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/DerivationTests.dia"
+  },
+  "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/DiscoveryTests.swift": {
+    "dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/DiscoveryTests.d",
+    "object": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/DiscoveryTests.swift.o",
+    "swiftmodule": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/DiscoveryTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/DiscoveryTests.swiftdeps",
+    "diagnostics": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/DiscoveryTests.dia"
+  },
+  "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/EnvelopeSessionTests.swift": {
+    "dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/EnvelopeSessionTests.d",
+    "object": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/EnvelopeSessionTests.swift.o",
+    "swiftmodule": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/EnvelopeSessionTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/EnvelopeSessionTests.swiftdeps",
+    "diagnostics": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/EnvelopeSessionTests.dia"
+  },
+  "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/FragmentTests.swift": {
+    "dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/FragmentTests.d",
+    "object": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/FragmentTests.swift.o",
+    "swiftmodule": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/FragmentTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/FragmentTests.swiftdeps",
+    "diagnostics": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/FragmentTests.dia"
+  },
+  "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/InviteTests.swift": {
+    "dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/InviteTests.d",
+    "object": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/InviteTests.swift.o",
+    "swiftmodule": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/InviteTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/InviteTests.swiftdeps",
+    "diagnostics": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/InviteTests.dia"
+  },
+  "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/NoiseAppPairingTests.swift": {
+    "dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/NoiseAppPairingTests.d",
+    "object": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/NoiseAppPairingTests.swift.o",
+    "swiftmodule": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/NoiseAppPairingTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/NoiseAppPairingTests.swiftdeps",
+    "diagnostics": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/NoiseAppPairingTests.dia"
+  },
+  "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/NoiseOfficialTests.swift": {
+    "dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/NoiseOfficialTests.d",
+    "object": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/NoiseOfficialTests.swift.o",
+    "swiftmodule": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/NoiseOfficialTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/NoiseOfficialTests.swiftdeps",
+    "diagnostics": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/NoiseOfficialTests.dia"
+  },
+  "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/SecurityRulesTests.swift": {
+    "dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/SecurityRulesTests.d",
+    "object": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/SecurityRulesTests.swift.o",
+    "swiftmodule": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/SecurityRulesTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/SecurityRulesTests.swiftdeps",
+    "diagnostics": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/SecurityRulesTests.dia"
+  },
+  "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/StateTransitionTests.swift": {
+    "dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/StateTransitionTests.d",
+    "object": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/StateTransitionTests.swift.o",
+    "swiftmodule": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/StateTransitionTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/StateTransitionTests.swiftdeps",
+    "diagnostics": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/StateTransitionTests.dia"
+  },
+  "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/TestSupport.swift": {
+    "dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/TestSupport.d",
+    "object": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/TestSupport.swift.o",
+    "swiftmodule": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/TestSupport~partial.swiftmodule",
+    "swift-dependencies": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/TestSupport.swiftdeps",
+    "diagnostics": "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCoreTests.build/TestSupport.dia"
+  }
+}

@@ -1,0 +1,3 @@
+module CellularChatCore {
+    header "/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/.build/arm64-apple-macosx/debug/CellularChatCore.build/include/CellularChatCore-Swift.h"
+}

@@ -24,16 +24,27 @@
     <false/>
     <key>LSRequiresIPhoneOS</key>
     <true/>
-    <key>NSBonjourServices</key>
-    <array>
-        <string>_cellchat._tcp</string>
-    </array>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>인터넷 없이 등록된 상대 기기를 다시 찾고 근접도를 확인하기 위해 블루투스를 사용합니다.</string>
     <key>NSCameraUsageDescription</key>
-    <string>혼잡한 장소에서 UWB 방향 측정을 보조하기 위해 카메라를 사용합니다.</string>
-    <key>NSLocalNetworkUsageDescription</key>
-    <string>인터넷 없이 주변 기기와 대화하고 파일을 전송하기 위해 로컬 네트워크를 사용합니다.</string>
+    <string>초대 QR 코드를 스캔하고, 혼잡한 장소에서 UWB 방향 측정을 보조하기 위해 카메라를 사용합니다.</string>
     <key>NSNearbyInteractionUsageDescription</key>
     <string>연결된 상대 기기까지의 실제 거리와 방향을 표시하기 위해 UWB를 사용합니다.</string>
+    <key>WiFiAwareServices</key>
+    <dict>
+        <key>cellfind</key>
+        <dict>
+            <key>Publishable</key>
+            <true/>
+            <key>Subscribable</key>
+            <true/>
+        </dict>
+    </dict>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>bluetooth-central</string>
+        <string>nearby-interaction</string>
+    </array>
     <key>UIApplicationSceneManifest</key>
     <dict>
         <key>UIApplicationSupportsMultipleScenes</key>

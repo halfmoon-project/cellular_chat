@@ -1,0 +1,12 @@
+/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/CBORTests.swift
+/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/CapabilityTests.swift
+/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/DerivationTests.swift
+/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/DiscoveryTests.swift
+/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/EnvelopeSessionTests.swift
+/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/FragmentTests.swift
+/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/InviteTests.swift
+/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/NoiseAppPairingTests.swift
+/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/NoiseOfficialTests.swift
+/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/SecurityRulesTests.swift
+/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/StateTransitionTests.swift
+/Users/sanghyeon/projects/cellular_chat/ios/CellularChatCore/Tests/CellularChatCoreTests/TestSupport.swift
