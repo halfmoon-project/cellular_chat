@@ -300,6 +300,138 @@ def gen_state_transitions():
     return {"states": states, "events": events, "transitions": rows}
 
 
+class RangingNegotiationModel:
+    """Independent reference for the app-side RangingCoordinator `ni_peer`
+    attempt negotiation (PROTOCOL_V2.md §8 offer/accept/start, §10:379-382 /
+    §12:469-470 idempotency). Mirrors the two idempotency guards both platforms
+    implement: `startedAttempt` dedup (a duplicate (sid, attemptId) ranging_start
+    is a single session effect), matched-only ranging_stop (a duplicate stop is a
+    no-op), and stale-attemptId rejection (an accept/start/stop/error for a
+    non-current attempt is ignored). It generates the outbound message stream and
+    session-effect log the platform tests assert against."""
+
+    NI_PEER = 3
+
+    def __init__(self, offerer: bool):
+        self.offerer = offerer
+        self.attempt_counter = 0
+        self.current = None
+        self.started = None
+        self.outbound = []   # (op, attemptId) emitted by the coordinator
+        self.effects = []    # ("started"|"stopped", attemptId)
+
+    def begin(self):
+        if self.offerer:
+            self.attempt_counter += 1
+            self.current = self.attempt_counter
+            self.outbound.append(("ranging_offer", self.current))
+
+    def _begin_method(self, aid):
+        if self.started != aid:           # dedup: single session effect
+            self.started = aid
+            self.effects.append(("started", aid))
+
+    def feed(self, op):
+        t, aid = op["op"], op["attemptId"]
+        if t == "ranging_offer":          # controlee accepts, echoing the id
+            self.current = aid
+            self.outbound.append(("ranging_accept", aid))
+        elif t == "ranging_accept":       # offerer starts iff it matches
+            if aid == self.current:
+                self.outbound.append(("ranging_start", aid))
+                self._begin_method(aid)
+        elif t == "ranging_start":        # controlee begins iff it matches
+            if aid == self.current:
+                self._begin_method(aid)
+        elif t == "ranging_stop":         # matched-only: duplicate stop is a no-op
+            if self.started == aid:
+                self.started = None
+                self.effects.append(("stopped", aid))
+        elif t == "ranging_error":        # stale-safe fallback
+            if aid == self.current:
+                self.started = None
+        else:
+            raise ValueError(t)
+
+
+def gen_duplicate_ops():
+    specs = [
+        {
+            "name": "duplicateRangingStart",
+            "role": "controlee",
+            "note": "duplicate ranging_start (same sid+attemptId) -> single session effect",
+            "ops": [
+                {"op": "ranging_offer", "attemptId": 1, "method": 3},
+                {"op": "ranging_start", "attemptId": 1},
+                {"op": "ranging_start", "attemptId": 1},
+            ],
+        },
+        {
+            "name": "duplicateRangingStop",
+            "role": "controlee",
+            "note": "duplicate ranging_stop -> no error; the second stop is a no-op",
+            "ops": [
+                {"op": "ranging_offer", "attemptId": 2, "method": 3},
+                {"op": "ranging_start", "attemptId": 2},
+                {"op": "ranging_stop", "attemptId": 2, "reason": 1},
+                {"op": "ranging_stop", "attemptId": 2, "reason": 1},
+            ],
+        },
+        {
+            "name": "staleAttemptIgnored",
+            "role": "offerer",
+            "note": "an accept for a non-current attemptId is ignored (no ranging_start for a stale/unknown attempt)",
+            "ops": [
+                {"op": "ranging_accept", "attemptId": 99, "method": 3},
+                {"op": "ranging_accept", "attemptId": 1, "method": 3},
+            ],
+        },
+    ]
+    cases = []
+    for spec in specs:
+        model = RangingNegotiationModel(offerer=(spec["role"] == "offerer"))
+        model.begin()
+        for op in spec["ops"]:
+            model.feed(op)
+        cases.append({
+            "name": spec["name"],
+            "role": spec["role"],
+            "note": spec["note"],
+            "ops": spec["ops"],
+            "expectOutbound": [{"op": o, "attemptId": a} for o, a in model.outbound],
+            "sessionsStarted": [a for k, a in model.effects if k == "started"],
+            "sessionsStopped": [a for k, a in model.effects if k == "stopped"],
+        })
+
+    # Self-validation: the idempotency invariants this fixture asserts must hold.
+    byname = {c["name"]: c for c in cases}
+    assert byname["duplicateRangingStart"]["sessionsStarted"] == [1], "dup start not single-effect"
+    assert byname["duplicateRangingStart"]["expectOutbound"] == \
+        [{"op": "ranging_accept", "attemptId": 1}]
+    assert byname["duplicateRangingStop"]["sessionsStarted"] == [2]
+    assert byname["duplicateRangingStop"]["sessionsStopped"] == [2], "dup stop not single-effect"
+    assert byname["staleAttemptIgnored"]["expectOutbound"] == \
+        [{"op": "ranging_offer", "attemptId": 1}, {"op": "ranging_start", "attemptId": 1}], \
+        "stale accept was not ignored"
+    assert byname["staleAttemptIgnored"]["sessionsStarted"] == [1]
+
+    return {
+        "sidHex": hx(SID),
+        "note": (
+            "Ranging-attempt idempotency conformance (PROTOCOL_V2.md "
+            "§10:379-382, §12:469-470). ni_peer ranging_offer/accept/start/stop "
+            "are the (sid, attemptId)-keyed operations, exchanged iOS<->iOS; "
+            "Android is always the OOB controller and treats them as no-ops. "
+            "'role' is the local RangingCoordinator role; an 'offerer' emits "
+            "ranging_offer(attemptId=1) on start, before any op is fed. "
+            "'expectOutbound' is the exact message stream the coordinator emits; "
+            "'sessionsStarted'/'sessionsStopped' are the deduped session effects."
+        ),
+        "rangingMethods": {"niPeer": 3},
+        "cases": cases,
+    }
+
+
 def gen_capability_selection():
     def caps(os, uwb=False, azimuth=False, interop=False, edm=False):
         return {"os": os, "uwbPresent": uwb, "uwbAzimuth": azimuth,
@@ -683,6 +815,9 @@ def main():
     # ---- capability selection + state machine
     write("capability_selection.json", gen_capability_selection())
     write("state_transitions.json", gen_state_transitions())
+
+    # ---- ranging-attempt idempotency (duplicate start/stop, stale attemptId)
+    write("duplicate_ops.json", gen_duplicate_ops())
 
     # ---- apple uwb
     acc48 = build_accessory_config(H("aabb"))

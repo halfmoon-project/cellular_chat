@@ -293,8 +293,8 @@ the logical Find session ID (§10). Both mismatches are fatal.
 | 3 | `pong` | `{1: n (uint)}` |
 | 4 | `disconnect` | `{1: reason (uint §13)}` |
 | 5 | `capabilities` | same body as `session_ready` field 1, re-announcement |
-| 6 | `transport_upgrade` | `{1: transport (1=aware, 2=nearby, 3=ble)}` |
-| 7 | `transport_ack` | `{1: transport (uint)}` |
+| 6 | `transport_upgrade` | `{1: transport (1=aware, 2=nearby), 2: attemptId (uint)}` |
+| 7 | `transport_ack` | `{1: transport (uint), 2: attemptId (uint), 3: accepted (bool)}` |
 | 16 | `ranging_offer` | `{1: attemptId (uint), 2: method (uint §12)}` |
 | 17 | `ranging_accept` | `{1: attemptId, 2: method}` |
 | 18 | `ranging_start` | `{1: attemptId}` |
@@ -370,16 +370,64 @@ Vectors (MTU 23, 185, 512 plus malformed cases):
 - The Noise session initiator generates `sid` (16 random bytes) for a new
   logical session and includes it in every transport message. The responder
   adopts the initiator's `sid`.
-- Transport upgrade: the upgrading side announces `transport_upgrade` on the
-  old transport, establishes the new transport with a fresh IKpsk2 handshake,
-  and reuses the same `sid`, proving continuation inside the new AEAD
-  channel. The old transport stays as control fallback (BLE) or is closed.
-- Duplicate connections for the same pair: if two simultaneous authenticated
-  connections exist, both sides keep the one whose Noise initiator has the
-  bytewise smaller static public key and close the other with
-  `disconnect {reason: duplicate}`. Duplicate `ranging_start`/`ranging_stop`
-  /`transport_upgrade` for an already-applied `(sid, attemptId)` are
-  idempotent no-ops.
+- Transport upgrade keeps one logical Find session (same `sid`) while moving to
+  a higher-preference transport (preference order §4: aware > nearby > ble).
+  The **upgrade driver** is the current session's Noise initiator; only it
+  starts upgrades, running on top of the working transport and never disturbing
+  it on failure.
+  - Trigger/observation. After reaching an authenticated, capability-exchanged
+    session the driver re-evaluates transports every 5 s while in a
+    connected/ranging state. A candidate `K` is upgrade-eligible when its
+    preference index is strictly better than the active transport's, `K` is
+    locally available at runtime, and the peer's exchanged CapabilitySet
+    advertises it (`wifiAware` for aware, `nearbyConnections` for nearby). `ble`
+    is never an upgrade target. At most one upgrade attempt is in flight.
+  - Upgrade `attemptId`. A monotonically increasing uint scoped to the `sid`,
+    counted independently of the ranging `attemptId` (§12), starting at 1.
+  - Sequence. (1) The driver sends `transport_upgrade {transport:K,
+    attemptId:a}` on the working transport and begins establishing `K` as the
+    Noise initiator with a fresh IKpsk2 handshake, prologue `transportTag` = `K`,
+    reusing `sid`. (2) The peer replies `transport_ack {transport:K,
+    attemptId:a, accepted}` on the working transport: `accepted=true` and it
+    accepts `K` as the Noise responder pre-initialized with the existing `sid`;
+    `accepted=false` when it cannot host `K`, whereupon the driver abandons the
+    attempt and keeps the working transport. A well-typed `transport` that is
+    `ble`, unknown, or not strictly better is declined with `accepted=false`,
+    not a fatal error. (3) On `K` both sides run the fresh handshake and
+    re-exchange `session_ready` (initiator first). The `K` responder MUST reject
+    a first-message `sid` ≠ the logical session's `sid`, and either side MUST
+    reject a `session_ready` CapabilitySet that differs from the one already
+    bound to this `sid` (§14) — both abort transport `K` only.
+  - Switchover. All session/ranging/state traffic moves to `K` only after both
+    `session_ready` are exchanged on `K`; until then everything, including
+    ranging, continues on the working transport. Sequence numbers reset to 0 per
+    direction on `K` (fresh `Split()` keys); the previous transport's counters
+    are independent. Ranging attempt state (keyed by `sid`/`attemptId`) is
+    preserved across switchover and is not renegotiated.
+  - Fallback retention. After switchover a previous BLE transport is retained,
+    authenticated and idle, as the control fallback; any other previous
+    transport is closed with `disconnect {reason: upgraded}`. If the upgraded
+    transport is later lost while a retained BLE control session is still
+    authenticated, traffic reverts to BLE in place without a new handshake
+    (reason `transportLost`, no `signalLost` transition) and upgrade evaluation
+    resumes.
+  - Failure/timeout. An attempt that does not reach both `session_ready` on `K`
+    within 10 s, is declined, or fails the `K` handshake/`sid`/capability checks
+    tears down only `K`, leaves the working transport and the Find state machine
+    untouched, and backs off before the next attempt (initial 5 s, ×2, cap 60 s;
+    reset on any successful upgrade). A successful upgrade emits no Find state
+    transition.
+  - Idempotency. `transport_upgrade`/`transport_ack` for an already-applied
+    `(sid, attemptId)` are no-ops; the responder re-sends its cached
+    `transport_ack` and never opens a second `K` connection for that
+    `(sid, attemptId)`.
+- Duplicate connections for the same pair — two authenticated connections
+  presenting different `sid`s — are reconciled by both sides keeping the one
+  whose Noise initiator has the bytewise smaller static public key and closing
+  the other with `disconnect {reason: duplicate}`. A second authenticated
+  connection presenting the current logical session's `sid` is the upgrade
+  transport above, not a duplicate. Duplicate `ranging_start`/`ranging_stop` for
+  an already-applied `(sid, attemptId)` are idempotent no-ops.
 
 State machine (both platforms implement the identical reducer; conformance
 fixtures in `shared/vectors/state_transitions.json`):
@@ -466,6 +514,10 @@ Attempt negotiation per method:
   opens the attempt; the platform OOB payloads negotiate the rest.
 - `ble_rssi`: local-only; no messages.
 
+The offered/accepted/implied `method` MUST lie in the mutually-supported set of
+both exchanged CapabilitySets (§14); an out-of-transcript method is a
+`capabilityMismatch` disconnect, not a ranging fallback.
+
 Duplicate operations for an already-applied `(sid, attemptId)` are
 idempotent no-ops (§10); `ranging_stop`/`ranging_error` close an attempt.
 
@@ -508,6 +560,31 @@ Before any message reaches the state machine, implementations MUST reject:
   before it completed.
 - A session initiator static key that does not match the pinned peer key.
 - Fragmentation violations (§9).
+
+Capability-transcript consistency (disconnect with `capabilityMismatch`): the
+CapabilitySet each side sends in its first `session_ready` is bound to the
+logical session `sid`. Using only the two bound CapabilitySets, implementations
+MUST reject:
+
+- A later `capabilities` (5) or `session_ready` from a peer whose decoded
+  CapabilitySet differs in any §11 field from that peer's first bound set.
+  Comparison is over the normalized 14-field set (unknown keys ignored, missing
+  keys defaulted), so a benign re-encoding is not a mismatch.
+- A `ranging_offer`/`ranging_accept` (16/17) whose `method` is outside the
+  mutually-supported set: `ni_peer` requires both `os=ios` and both
+  `uwbPresent`; `uwb_android_oob` requires both `os=android` and both
+  `uwbPresent`; `uwb_apple_interop` requires mixed `os`, both `uwbPresent`, and
+  both `appleInteropUwb`; `ble_rssi` is always supported. A `ranging_accept`
+  whose `method` differs from the matching `ranging_offer`'s is also a mismatch.
+- An implicit offer — `apple_config` (21) for `uwb_apple_interop`, `oob_data`
+  (24) for `uwb_android_oob`, `ni_token` (23) for `ni_peer` — whose implied
+  method is outside that mutually-supported set.
+
+On any of these the detecting side sends `disconnect {reason:
+capabilityMismatch}` and tears down the logical session; it is a hard failure,
+never a ranging fallback and never retried. During a transport upgrade a
+capability difference observed on the upgrade transport aborts only that
+transport (§10).
 
 A fatal error tears down the transport connection and surfaces a §13 reason;
 it never crashes the app and never leaves a half-open session that blocks the
