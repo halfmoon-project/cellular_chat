@@ -35,6 +35,8 @@ import com.cellularchat.app.pairing.InvitationFactory
 import com.cellularchat.app.pairing.PairingCoordinator
 import com.cellularchat.app.pairing.PairingHandle
 import com.cellularchat.app.ranging.ProximityBand
+import com.cellularchat.app.ranging.RssiTrend
+import com.cellularchat.app.ranging.TrendConfidence
 import com.cellularchat.app.transport.AndroidCapabilityProvider
 import com.google.zxing.integration.android.IntentIntegrator
 
@@ -66,7 +68,15 @@ class MainActivity : Activity() {
         showPeople()
     }
 
+    // Haptics are a foreground UI affordance; don't keep pulsing while the UI is
+    // not visible. They resume on the next fresh measurement after returning.
+    override fun onStop() {
+        haptics?.stop()
+        super.onStop()
+    }
+
     override fun onDestroy() {
+        haptics?.stop()
         FindController.removeObserver(findObserver)
         pairingHandle?.let { runCatching { it.close() } }
         super.onDestroy()
@@ -75,6 +85,7 @@ class MainActivity : Activity() {
     // --- People screen ---
 
     private fun showPeople() {
+        haptics?.stop()
         FindController.removeObserver(findObserver)
         cancelPairing()
         container.removeAllViews()
@@ -105,11 +116,11 @@ class MainActivity : Activity() {
             setPadding(0, pad(2), 0, 0)
         }
         actions.addView(
-            primaryButton(getString(R.string.people_find)) { startFind(record) }
+            primaryButton(getString(R.string.people_find)) { promptFindDuration(record) }
                 .also { (it.layoutParams as LinearLayout.LayoutParams).rightMargin = pad(2) },
         )
         actions.addView(
-            plainButton(getString(R.string.people_revoke)) { confirmRevoke(record) },
+            plainButton(getString(R.string.people_settings)) { showPairSettings(record) },
         )
         row.addView(actions)
         return row
@@ -125,6 +136,37 @@ class MainActivity : Activity() {
             }
             .show()
     }
+
+    // --- Pair settings screen ---
+
+    private fun showPairSettings(record: PairRecord) {
+        container.removeAllViews()
+        container.addView(backTitle(getString(R.string.pair_settings_title, record.alias)) { showPeople() })
+
+        container.addView(muted(getString(R.string.pair_settings_alias)))
+        val aliasInput = editText(getString(R.string.pair_alias_hint)).apply { setText(record.alias) }
+        container.addView(aliasInput)
+        container.addView(
+            primaryButton(getString(R.string.pair_settings_save)) {
+                val alias = aliasText(aliasInput)
+                if (alias.isNotEmpty()) {
+                    store.upsert(record.copy(alias = alias))
+                    toast(getString(R.string.pair_settings_saved))
+                    showPeople()
+                }
+            },
+        )
+        container.addView(spacer())
+
+        container.addView(muted(getString(R.string.pair_settings_fingerprint, PairFingerprint.display(record))))
+        container.addView(muted(getString(R.string.pair_settings_created, formatDate(record.createdAt))))
+        container.addView(spacer())
+
+        container.addView(plainButton(getString(R.string.people_revoke)) { confirmRevoke(record) })
+    }
+
+    private fun formatDate(unixSeconds: Long): String =
+        java.text.DateFormat.getDateInstance().format(java.util.Date(unixSeconds * 1000L))
 
     // --- Pair screen ---
 
@@ -150,6 +192,7 @@ class MainActivity : Activity() {
             container.addView(
                 ImageView(this).apply {
                     setImageBitmap(qr)
+                    contentDescription = getString(R.string.cd_qr)
                     layoutParams = LinearLayout.LayoutParams(dp(240), dp(240)).apply {
                         gravity = Gravity.CENTER_HORIZONTAL
                         topMargin = pad(4)
@@ -256,25 +299,49 @@ class MainActivity : Activity() {
 
     // --- Find screen ---
 
-    private fun startFind(record: PairRecord) {
+    private fun promptFindDuration(record: PairRecord) {
+        val labels = FindDurations.minuteOptions.map { durationLabel(it) }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.find_duration_title)
+            .setSingleChoiceItems(labels, FindDurations.defaultIndex) { dialog, which ->
+                dialog.dismiss()
+                startFind(record, FindDurations.millis(FindDurations.minuteOptions[which]))
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun durationLabel(minutes: Int): String = when (minutes) {
+        60 -> getString(R.string.find_duration_hour)
+        120 -> getString(R.string.find_duration_two_hours)
+        else -> getString(R.string.find_duration_minutes, minutes)
+    }
+
+    private fun startFind(record: PairRecord, durationMillis: Long) {
         if (!ensureFindPermissions()) {
             pendingFind = record
+            pendingFindDuration = durationMillis
             return
         }
         showFind(record)
-        FindController.arm(this, record, AndroidCapabilityProvider(this, "2.0.0"), FIND_DURATION_MILLIS)
+        FindController.arm(this, record, AndroidCapabilityProvider(this, "2.0.0"), durationMillis)
     }
 
     private lateinit var findStateLabel: TextView
     private lateinit var findReasonLabel: TextView
     private lateinit var findDirection: DirectionView
     private lateinit var findMeasurement: TextView
+    private lateinit var findTrendLabel: TextView
+    private lateinit var findTechLabel: TextView
+    private var haptics: FindHaptics? = null
 
     private fun showFind(record: PairRecord) {
         container.removeAllViews()
         container.addView(backTitle(getString(R.string.find_title, record.alias)) { stopFindAndBack() })
 
-        findStateLabel = title(getString(R.string.state_arming))
+        findStateLabel = title(getString(R.string.state_arming)).apply {
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
         container.addView(findStateLabel)
         findReasonLabel = muted("")
         container.addView(findReasonLabel)
@@ -285,20 +352,32 @@ class MainActivity : Activity() {
                 topMargin = pad(4)
             }
             visibility = View.GONE
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
         }
         container.addView(findDirection)
 
         findMeasurement = title("—")
         container.addView(findMeasurement)
 
+        // Advisory RSSI trend (Feature C): plain text, never an arrow.
+        findTrendLabel = muted("").apply { visibility = View.GONE }
+        container.addView(findTrendLabel)
+
+        findTechLabel = muted("").apply { visibility = View.GONE }
+        container.addView(findTechLabel)
+
         container.addView(muted(getString(R.string.find_searching_note)))
+        container.addView(muted(getString(R.string.find_honesty_note)))
         container.addView(spacer())
         container.addView(primaryButton(getString(R.string.find_stop)) { stopFindAndBack() })
 
+        haptics?.stop()
+        haptics = FindHaptics(this)
         FindController.addObserver(findObserver)
     }
 
     private fun stopFindAndBack() {
+        haptics?.stop()
         FindController.stop(this)
         showPeople()
     }
@@ -310,21 +389,66 @@ class MainActivity : Activity() {
         if (measurement?.azimuthDegrees != null) {
             findDirection.visibility = View.VISIBLE
             findDirection.setAzimuth(measurement.azimuthDegrees)
+            findDirection.contentDescription =
+                FindAccessibility.directionDescription(measurement.azimuthDegrees, measurement.distanceMeters)
         } else {
             findDirection.visibility = View.GONE
             findDirection.setAzimuth(null)
+            findDirection.contentDescription = null
         }
         findMeasurement.text = when {
             measurement?.distanceMeters != null -> "%.2f m".format(measurement.distanceMeters)
             state.proximity != null -> proximityLabel(state.proximity)
             else -> "—"
         }
+        // Advisory trend only on the RSSI proximity path and only at high
+        // confidence; UWB measurements carry no trend, low confidence shows none.
+        val trend = if (state.proximity != null && state.trendConfidence == TrendConfidence.HIGH) {
+            trendLabel(state.trend)
+        } else {
+            null
+        }
+        if (trend != null) {
+            findTrendLabel.visibility = View.VISIBLE
+            findTrendLabel.text = trend
+        } else {
+            findTrendLabel.visibility = View.GONE
+        }
+        val tech = state.rangingTechnology?.let { techLabel(it) }
+        if (tech != null) {
+            findTechLabel.visibility = View.VISIBLE
+            findTechLabel.text = getString(R.string.find_ranging_tech, tech)
+        } else {
+            findTechLabel.visibility = View.GONE
+        }
         findReasonLabel.text = if (state.state == FindState.SEARCHING) {
             getString(R.string.find_searching_note)
         } else {
             ""
         }
+        val interval = if (isMeasuring(state.state)) {
+            FindHaptics.intervalMillis(measurement?.distanceMeters, state.proximity)
+        } else {
+            null
+        }
+        haptics?.update(interval)
     }
+
+    private fun techLabel(technology: Int): String? = RangingTechnologyLabel.of(technology)?.let {
+        getString(
+            when (it) {
+                RangingTechnologyLabel.Tech.UWB -> R.string.tech_uwb
+                RangingTechnologyLabel.Tech.BLE_CS -> R.string.tech_ble_cs
+                RangingTechnologyLabel.Tech.WIFI_NAN_RTT -> R.string.tech_wifi_rtt
+                RangingTechnologyLabel.Tech.BLE_RSSI -> R.string.tech_ble_rssi
+            },
+        )
+    }
+
+    private fun isMeasuring(state: FindState): Boolean =
+        state == FindState.DIRECTION_AVAILABLE ||
+            state == FindState.DISTANCE_ONLY ||
+            state == FindState.PROXIMITY_ONLY
 
     private fun stateLabel(state: FindState): String = getString(
         when (state) {
@@ -356,9 +480,18 @@ class MainActivity : Activity() {
         },
     )
 
+    private fun trendLabel(trend: RssiTrend): String = getString(
+        when (trend) {
+            RssiTrend.APPROACHING -> R.string.trend_approaching
+            RssiTrend.RECEDING -> R.string.trend_receding
+            RssiTrend.STEADY -> R.string.trend_steady
+        },
+    )
+
     // --- Permissions ---
 
     private var pendingFind: PairRecord? = null
+    private var pendingFindDuration: Long = FindDurations.millis(FindDurations.DEFAULT_MINUTES)
 
     private fun ensurePairingPermissions(): Boolean =
         requestMissing(
@@ -405,7 +538,7 @@ class MainActivity : Activity() {
             REQ_FIND -> {
                 val record = pendingFind
                 pendingFind = null
-                if (!denied && record != null) startFind(record) else if (denied) offerSettings()
+                if (!denied && record != null) startFind(record, pendingFindDuration) else if (denied) offerSettings()
             }
             REQ_CAMERA -> if (!denied) launchScan() else offerSettings()
             REQ_PAIR -> if (denied) offerSettings()
@@ -456,7 +589,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        row.addView(plainButton("←") { onBack() })
+        row.addView(plainButton("←") { onBack() }.apply { contentDescription = getString(R.string.cd_back) })
         row.addView(title(text))
         return row
     }
@@ -534,6 +667,5 @@ class MainActivity : Activity() {
         private const val REQ_FIND = 201
         private const val REQ_PAIR = 202
         private const val REQ_CAMERA = 203
-        private const val FIND_DURATION_MILLIS = 30 * 60 * 1000L
     }
 }

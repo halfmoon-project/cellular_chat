@@ -49,6 +49,20 @@ class PairStoreTest {
     }
 
     @Test
+    fun renamePersistsWithoutDuplicating() {
+        val file = File.createTempFile("pairs", ".enc").also { it.delete() }
+        PairStore(file, PlainCipher()).apply {
+            upsert(record(1))
+            // Pair Settings alias rename path: upsert a copy with the same pairId.
+            upsert(get(ByteArray(16) { 1 })!!.copy(alias = "새이름"))
+        }
+        val reopened = PairStore(file, PlainCipher())
+        assertEquals(1, reopened.all().size)
+        assertEquals("새이름", reopened.get(ByteArray(16) { 1 })!!.alias)
+        file.delete()
+    }
+
+    @Test
     fun corruptBlobIsTreatedAsEmpty() {
         val file = File.createTempFile("pairs", ".enc")
         file.writeBytes(byteArrayOf(1, 2, 3)) // not a valid CBOR array

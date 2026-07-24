@@ -6,6 +6,8 @@ import com.cellularchat.app.core.protocol.FindState
 import com.cellularchat.app.core.protocol.FindStateMachine
 import com.cellularchat.app.ranging.Measurement
 import com.cellularchat.app.ranging.ProximityBand
+import com.cellularchat.app.ranging.RssiTrend
+import com.cellularchat.app.ranging.TrendConfidence
 
 /**
  * Observable snapshot of a Find session for the UI (single source of truth).
@@ -18,6 +20,13 @@ data class FindUiState(
     val measurement: Measurement? = null,
     val proximity: ProximityBand? = null,
     val deadlineMillis: Long? = null,
+    // The RangingManager technology the platform actually started with (§8/§12);
+    // the UI shows which technology is ranging. Cleared on `signalLost`.
+    val rangingTechnology: Int? = null,
+    // Advisory RSSI trend (Feature C); the UI shows it only when confidence is
+    // HIGH and only alongside a proximity value. Cleared on `signalLost`.
+    val trend: RssiTrend = RssiTrend.STEADY,
+    val trendConfidence: TrendConfidence = TrendConfidence.LOW,
 )
 
 /**
@@ -54,7 +63,13 @@ class FindSessionCoordinator(
         if (!transition.valid) return
         var next = mutate(uiState).copy(state = transition.next, reason = reason)
         if (transition.next == FindState.SIGNAL_LOST) {
-            next = next.copy(measurement = null, proximity = null)
+            next = next.copy(
+                measurement = null,
+                proximity = null,
+                rangingTechnology = null,
+                trend = RssiTrend.STEADY,
+                trendConfidence = TrendConfidence.LOW,
+            )
         }
         emit(next)
     }
@@ -83,10 +98,27 @@ class FindSessionCoordinator(
     fun onDistance(measurement: Measurement) =
         dispatchWith(FindEvent.SAMPLE_DISTANCE) { it.copy(measurement = measurement, proximity = null) }
 
-    fun onProximity(band: ProximityBand) =
-        dispatchWith(FindEvent.SAMPLE_PROXIMITY) { it.copy(measurement = null, proximity = band) }
+    fun onProximity(
+        band: ProximityBand,
+        trend: RssiTrend = RssiTrend.STEADY,
+        trendConfidence: TrendConfidence = TrendConfidence.LOW,
+    ) {
+        // A proximity sample arriving in CONNECTED_ONLY is the RSSI fallback
+        // engaging after RANGING_UNAVAILABLE; the reducer requires re-entering
+        // through RANGING_STARTING (connectedOnly rejects samples directly).
+        if (uiState.state == FindState.CONNECTED_ONLY) dispatch(FindEvent.RANGING_STARTING)
+        dispatchWith(FindEvent.SAMPLE_PROXIMITY) {
+            it.copy(measurement = null, proximity = band, trend = trend, trendConfidence = trendConfidence)
+        }
+    }
 
-    fun onRangingUnavailable() = dispatch(FindEvent.RANGING_UNAVAILABLE)
+    fun onRangingUnavailable() =
+        dispatchWith(FindEvent.RANGING_UNAVAILABLE) { it.copy(rangingTechnology = null) }
+
+    /** Records the technology the platform actually started ranging with (§8/§12).
+     * Not a state transition — only annotates the current state for the UI. */
+    @Synchronized
+    fun onTechnology(technology: Int) = emit(uiState.copy(rangingTechnology = technology))
 
     // --- Loss / retry / termination ---
 

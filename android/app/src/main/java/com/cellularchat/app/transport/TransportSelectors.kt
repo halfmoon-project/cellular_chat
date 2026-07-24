@@ -32,6 +32,23 @@ object BleRoleSelector {
 }
 
 /**
+ * Transport preference order for the BLE→higher upgrade (PROTOCOL_V2.md §4/§10,
+ * Feature A): aware < nearby < ble. A candidate is upgrade-eligible only when its
+ * preference index is STRICTLY better (smaller) than the active transport's. `ble`
+ * is never an upgrade target.
+ */
+object TransportPreference {
+    private val ORDER = listOf("aware", "nearby", "ble")
+
+    /** Lower is more preferred; an unknown tag ranks after everything. */
+    fun index(tag: String): Int = ORDER.indexOf(tag).let { if (it < 0) ORDER.size else it }
+
+    /** True iff moving the active transport [from] to candidate [to] is a strict upgrade. */
+    fun shouldUpgrade(from: String, to: String): Boolean =
+        to != "ble" && index(to) < index(from)
+}
+
+/**
  * Duplicate-connection tie-break (PROTOCOL_V2.md §10). When two simultaneous
  * authenticated connections exist for one pair, both sides keep the one whose
  * Noise initiator has the bytewise-smaller static public key and close the

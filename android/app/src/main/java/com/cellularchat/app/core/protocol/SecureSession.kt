@@ -203,5 +203,25 @@ class SecureSession private constructor(
             Role.RESPONDER, pairId, transportTag, localStaticPrivate, pinnedPeerStatic,
             pairRoot, null, fixedEphemeralPrivate,
         )
+
+        /**
+         * Responder pre-initialized with a KNOWN [sid] for a transport upgrade
+         * (Feature A.6): the first-message sid check then enforces equality with
+         * [sid] instead of adopting the peer's, so a first-message `sid != S`
+         * aborts transport K with `sidMismatch`. Never used for a first-contact
+         * session, only for the upgrade transport whose logical sid is fixed.
+         */
+        fun responderForUpgrade(
+            pairId: ByteArray,
+            transportTag: String,
+            localStaticPrivate: ByteArray,
+            pinnedPeerStatic: ByteArray,
+            pairRoot: ByteArray,
+            sid: ByteArray,
+            fixedEphemeralPrivate: ByteArray? = null,
+        ) = SecureSession(
+            Role.RESPONDER, pairId, transportTag, localStaticPrivate, pinnedPeerStatic,
+            pairRoot, sid, fixedEphemeralPrivate,
+        )
     }
 }

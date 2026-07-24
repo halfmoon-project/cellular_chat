@@ -6,8 +6,17 @@
     <string name="people_empty">아직 등록된 사람이 없습니다. 아래에서 추가하세요.</string>
     <string name="people_add">사람 추가</string>
     <string name="people_find">찾기</string>
+    <string name="people_settings">설정</string>
     <string name="people_revoke">해제</string>
     <string name="people_revoke_confirm">이 사람과의 페어링을 해제할까요? 다시 찾으려면 재등록이 필요합니다.</string>
+
+    <!-- Pair settings -->
+    <string name="pair_settings_title">%1$s 설정</string>
+    <string name="pair_settings_alias">이름</string>
+    <string name="pair_settings_save">저장</string>
+    <string name="pair_settings_saved">저장되었습니다</string>
+    <string name="pair_settings_fingerprint">지문: %1$s</string>
+    <string name="pair_settings_created">등록일: %1$s</string>
 
     <!-- Pair -->
     <string name="pair_title">사람 추가</string>
@@ -28,10 +37,28 @@
     <string name="find_title">%1$s 찾기</string>
     <string name="find_stop">중지</string>
     <string name="find_searching_note">검색 중은 아직 직접 무선 범위 안에 들어오지 않았다는 뜻입니다. 상대가 없다는 뜻이 아닙니다.</string>
+    <string name="find_honesty_note">앱을 강제 종료하거나 무선 기능이 꺼져 있거나 권한이 없거나 OS가 앱을 중단하면 상대가 검색되지 않을 수 있습니다.</string>
     <string name="find_permissions">권한 허용</string>
     <string name="find_open_settings">설정 열기</string>
     <string name="find_notification_title">찾기 진행 중</string>
     <string name="find_notification_text">%1$s 을(를) 찾는 중</string>
+
+    <!-- Find duration -->
+    <string name="find_duration_title">찾기 시간 선택</string>
+    <string name="find_duration_minutes">%1$d분</string>
+    <string name="find_duration_hour">1시간</string>
+    <string name="find_duration_two_hours">2시간</string>
+
+    <!-- Ranging technology -->
+    <string name="find_ranging_tech">측정 방식: %1$s</string>
+    <string name="tech_uwb">UWB</string>
+    <string name="tech_ble_rssi">BLE 신호</string>
+    <string name="tech_wifi_rtt">Wi-Fi RTT</string>
+    <string name="tech_ble_cs">블루투스 채널 사운딩</string>
+
+    <!-- Accessibility -->
+    <string name="cd_back">뒤로</string>
+    <string name="cd_qr">초대 QR 코드</string>
 
     <!-- Find state labels -->
     <string name="state_idle">대기 중</string>
@@ -56,4 +83,9 @@
     <string name="band_near">가까움</string>
     <string name="band_far">멈</string>
     <string name="band_unknown">측정 대기</string>
+
+    <!-- RSSI trend (advisory text only, never an arrow; shown only when confidence is high) -->
+    <string name="trend_approaching">가까워지는 중</string>
+    <string name="trend_receding">멀어지는 중</string>
+    <string name="trend_steady">유지</string>
 </resources>

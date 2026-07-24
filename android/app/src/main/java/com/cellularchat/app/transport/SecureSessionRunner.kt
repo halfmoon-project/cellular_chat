@@ -31,6 +31,14 @@ class SecureSessionRunner(
         fun onAuthenticated(peerSessionReady: SessionEnvelope)
         fun onSessionMessage(envelope: SessionEnvelope)
         fun onClosed(reason: Int)
+
+        /**
+         * A mid-session `transport_upgrade`/`transport_ack` arrived on this
+         * (working) transport (Feature A.10). A [ProtocolException] thrown here
+         * tears the working transport down with its reason (a malformed upgrade
+         * is a §14 violation); a graceful decline must NOT throw.
+         */
+        fun onTransportControl(envelope: SessionEnvelope) {}
     }
 
     private var sentReady = false
@@ -93,7 +101,18 @@ class SecureSessionRunner(
             if (!authenticated) {
                 authenticated = true
                 events.onAuthenticated(envelope)
+            } else {
+                // A later session_ready is a capability re-announcement (Feature
+                // B.2.1); surface it for the drift check.
+                events.onSessionMessage(envelope)
             }
+            return
+        }
+        // transport_upgrade/transport_ack ride the working session (Feature A.10).
+        if (envelope.msgType == SessionMsgType.TRANSPORT_UPGRADE ||
+            envelope.msgType == SessionMsgType.TRANSPORT_ACK
+        ) {
+            events.onTransportControl(envelope)
             return
         }
         events.onSessionMessage(envelope)

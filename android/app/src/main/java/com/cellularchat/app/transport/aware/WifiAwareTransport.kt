@@ -1,6 +1,9 @@
 package com.cellularchat.app.transport.aware
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.Network
@@ -56,6 +59,7 @@ class WifiAwareTransport(
     private var serverSocket: ServerSocket? = null
     private var socket: Socket? = null
     private var listener: PeerTransport.Listener? = null
+    private var availabilityReceiver: BroadcastReceiver? = null
     private val closed = AtomicBoolean(false)
 
     override fun setListener(listener: PeerTransport.Listener) {
@@ -69,10 +73,45 @@ class WifiAwareTransport(
 
     fun start(): Boolean {
         if (!isAvailable()) return false
-        return runCatching {
+        registerAvailabilityReceiver()
+        val ok = runCatching {
             manager!!.attach(attachCallback, handler)
             true
         }.getOrDefault(false)
+        if (!ok) unregisterAvailabilityReceiver()
+        return ok
+    }
+
+    /**
+     * Observes `ACTION_WIFI_AWARE_STATE_CHANGED` for the life of the session
+     * (IMPLEMENTATION_PLAN.md §8). Lost availability closes the stale Aware
+     * sessions and reports a transport loss so the coordinator re-enters
+     * arbitration — it is never treated as a pairing error.
+     */
+    private fun registerAvailabilityReceiver() {
+        if (availabilityReceiver != null) return
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (closed.get()) return
+                if (manager?.isAvailable != true) onAvailabilityLost()
+            }
+        }
+        availabilityReceiver = receiver
+        runCatching {
+            context.registerReceiver(receiver, IntentFilter(WifiAwareManager.ACTION_WIFI_AWARE_STATE_CHANGED))
+        }.onFailure { availabilityReceiver = null }
+    }
+
+    private fun unregisterAvailabilityReceiver() {
+        availabilityReceiver?.let { runCatching { context.unregisterReceiver(it) } }
+        availabilityReceiver = null
+    }
+
+    private fun onAvailabilityLost() {
+        runCatching { publishSession?.close() }
+        runCatching { subscribeSession?.close() }
+        runCatching { awareSession?.close() }
+        fail(ReasonCodes.TRANSPORT_LOST)
     }
 
     private val attachCallback = object : AttachCallback() {
@@ -235,6 +274,7 @@ class WifiAwareTransport(
 
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
+        unregisterAvailabilityReceiver()
         runCatching { networkCallback?.let { connectivity?.unregisterNetworkCallback(it) } }
         runCatching { socket?.close() }
         runCatching { serverSocket?.close() }

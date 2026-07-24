@@ -42,6 +42,14 @@ class RawUwbController(
         fun onMeasurement(distanceMeters: Double?, azimuthDegrees: Double?, elevationDegrees: Double?)
         fun onError(rangingErrorCode: Int, detail: String)
         fun onStopped()
+
+        /**
+         * The platform started ranging with [technology] (a RangingManager
+         * technology constant). This is the technology the stack ACTUALLY
+         * selected — HIGH_ACCURACY_PREFERRED may pick something other than the
+         * requested method — so the UI is driven by it (§8/§12). Default no-op.
+         */
+        fun onStarted(technology: Int) {}
     }
 
     private val manager = context.getSystemService(RangingManager::class.java)
@@ -175,7 +183,9 @@ class RawUwbController(
             if (isCurrent(gen)) callbacks.onError(RangingErrorCodes.PLATFORM_ERROR, "UWB open failed ($reason)")
         }
 
-        override fun onStarted(peer: RangingDevice, technology: Int) = Unit
+        override fun onStarted(peer: RangingDevice, technology: Int) {
+            if (isCurrent(gen)) callbacks.onStarted(technology)
+        }
 
         override fun onStopped(peer: RangingDevice, technology: Int) {
             if (isCurrent(gen)) callbacks.onStopped()

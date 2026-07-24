@@ -56,4 +56,14 @@ class TransportSelectorsTest {
         // Ties keep the candidate.
         assertTrue(DuplicateConnectionResolver.shouldKeep(key(0x05), key(0x05)))
     }
+
+    @Test
+    fun duplicateGuardKeepsIncumbentForSamePairAndNewerSmallerInitiator() {
+        // FindController wires shouldKeep(incumbent, newcomer). Same-pair
+        // duplicates share the deterministic initiator static (a tie) → the
+        // already-active incumbent is kept, the newcomer is closed with duplicate.
+        assertTrue(DuplicateConnectionResolver.shouldKeep(key(0x0a, 0x0b), key(0x0a, 0x0b)))
+        // A newcomer whose initiator sorts smaller wins over the incumbent.
+        assertFalse(DuplicateConnectionResolver.shouldKeep(key(0x0a, 0x0c), key(0x0a, 0x0b)))
+    }
 }

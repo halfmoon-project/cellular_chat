@@ -4,6 +4,16 @@ package com.cellularchat.app.ranging
 enum class ProximityBand { VERY_NEAR, NEAR, FAR, UNKNOWN }
 
 /**
+ * RSSI approaching/receding trend (Feature C). Local, advisory only — never a
+ * direction and never an arrow. Produced by the shared regression over the
+ * rolling median history; identical parameters on iOS and Android.
+ */
+enum class RssiTrend { APPROACHING, STEADY, RECEDING }
+
+/** Confidence qualifier for [RssiTrend]; the UI shows a hint only when HIGH. */
+enum class TrendConfidence { LOW, HIGH }
+
+/**
  * A single fresh ranging sample. Only fields the platform actually reported are
  * non-null; a missing angle degrades to distance-only, a missing distance to
  * proximity-only (§12). RSSI proximity carries only [proximity].

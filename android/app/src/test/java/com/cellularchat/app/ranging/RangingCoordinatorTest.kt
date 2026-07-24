@@ -12,13 +12,17 @@ private class FakeOutput : RangingCoordinator.Output {
     val proximities = mutableListOf<ProximityBand>()
     var unavailable: String? = null
     var directions = 0
+    var technology: Int? = null
     var scheduledDelay: Long? = null
     private var scheduledAction: (() -> Unit)? = null
 
     override fun onDirection(measurement: Measurement) { directions++ }
     override fun onDistance(measurement: Measurement) = Unit
-    override fun onProximity(band: ProximityBand) { proximities.add(band) }
+    override fun onProximity(band: ProximityBand, trend: RssiTrend, confidence: TrendConfidence) {
+        proximities.add(band)
+    }
     override fun onRangingUnavailable(detail: String) { unavailable = detail }
+    override fun onTechnology(technology: Int) { this.technology = technology }
     override fun onSignalLost() = Unit
     override fun sendSessionMessage(msgType: Long, body: CborMap) = Unit
     override fun scheduleRetry(delayMillis: Long, action: () -> Unit) {
@@ -69,5 +73,34 @@ class RangingCoordinatorTest {
         val before = output.proximities.size
         coordinator.feedRssi(-40)
         assertEquals(before, output.proximities.size)
+    }
+
+    @Test
+    fun reportsActualStartedTechnologyNotRequestedMethod() {
+        val output = FakeOutput()
+        val coordinator = RangingCoordinator(output)
+        coordinator.select(android, android)
+        coordinator.start(UUID.randomUUID(), oobInitiator = false)
+        // The platform reports the technology it actually started with (§8/§12).
+        coordinator.uwbCallbacks.onStarted(technology = 7)
+        assertEquals(7, output.technology)
+    }
+
+    @Test
+    fun backgroundPausesNonUwbRangingAndForegroundResumes() {
+        val output = FakeOutput()
+        val coordinator = RangingCoordinator(output)
+        // Android/Android without UWB selects BLE_RSSI (non-UWB): foreground-only.
+        assertEquals(RangingMethod.BLE_RSSI, coordinator.select(android, android))
+        coordinator.start(UUID.randomUUID(), oobInitiator = false)
+
+        coordinator.setForeground(false)
+        val paused = output.proximities.size
+        repeat(5) { coordinator.feedRssi(-50) }
+        assertEquals("no RSSI while backgrounded", paused, output.proximities.size)
+
+        coordinator.setForeground(true)
+        repeat(5) { coordinator.feedRssi(-50) }
+        assertEquals(ProximityBand.VERY_NEAR, output.proximities.last())
     }
 }

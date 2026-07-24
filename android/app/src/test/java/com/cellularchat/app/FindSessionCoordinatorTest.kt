@@ -87,6 +87,35 @@ class FindSessionCoordinatorTest {
     }
 
     @Test
+    fun technologyIsSurfacedAndClearedOnSignalLost() {
+        val (c, state) = coordinator()
+        c.arm(1_000)
+        c.onPeerFound(); c.onTransportConnected(); c.onAuthenticated(); c.onRangingStarting()
+        c.onTechnology(7) // the platform's actually-started technology
+        assertEquals(7, state().rangingTechnology)
+        c.onDistance(Measurement(RangingMethod.UWB_ANDROID_OOB, distanceMeters = 3.0))
+        assertEquals(7, state().rangingTechnology)
+
+        c.onSignalLost(ReasonCodes.TRANSPORT_LOST)
+        assertNull("stale technology must be cleared", state().rangingTechnology)
+    }
+
+    @Test
+    fun rssiFallbackClearsRangingTechnology() {
+        val (c, state) = coordinator()
+        c.arm(1_000)
+        c.onPeerFound(); c.onTransportConnected(); c.onAuthenticated(); c.onRangingStarting()
+        c.onTechnology(7)
+        c.onDistance(Measurement(RangingMethod.UWB_ANDROID_OOB, distanceMeters = 3.0))
+
+        // UWB -> RSSI fallback must not keep advertising the UWB technology.
+        c.onRangingUnavailable()
+        c.onProximity(ProximityBand.NEAR)
+        assertNull("fallback must clear the started technology", state().rangingTechnology)
+        assertEquals(ProximityBand.NEAR, state().proximity)
+    }
+
+    @Test
     fun userStopIsTerminalWithReason() {
         val (c, state) = coordinator()
         c.arm(1_000)

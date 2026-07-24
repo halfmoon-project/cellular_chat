@@ -102,7 +102,9 @@ class AndroidOobController(
             if (isCurrent(gen)) callbacks.onError(RangingErrorCodes.PLATFORM_ERROR, "OOB open failed ($reason)")
         }
 
-        override fun onStarted(peer: RangingDevice, technology: Int) = Unit
+        override fun onStarted(peer: RangingDevice, technology: Int) {
+            if (isCurrent(gen)) callbacks.onStarted(technology)
+        }
 
         override fun onStopped(peer: RangingDevice, technology: Int) {
             if (isCurrent(gen)) callbacks.onStopped()
