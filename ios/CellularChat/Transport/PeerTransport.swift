@@ -30,6 +30,7 @@ enum TransportKind: String, CaseIterable, Equatable {
 
 enum TransportFailure: Error, Equatable {
     case unsupported          // SDK/hardware absent → fall through
+    case permissionRequired   // user denied the radio permission → surface settings
     case radioUnavailable
     case timeout
     case failed

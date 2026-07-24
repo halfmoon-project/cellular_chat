@@ -28,6 +28,14 @@ struct DirectionView: View {
                     .font(.system(.title, design: .rounded, weight: .bold))
             }
 
+            // RSSI approaching/receding trend as ADVISORY TEXT ONLY (Feature C):
+            // shown only at high confidence and never as an arrow/glyph.
+            if let trendText {
+                Text(trendText)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
             Text(statusText)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -38,6 +46,19 @@ struct DirectionView: View {
         .background(HM.color.bgSubtle, in: RoundedRectangle(cornerRadius: HM.radius.xl))
         .overlay {
             RoundedRectangle(cornerRadius: HM.radius.xl).stroke(HM.color.borderDefault)
+        }
+    }
+
+    /// Advisory RSSI trend text (Feature C): only for an RSSI-derived proximity
+    /// value at high confidence. RSSI never yields a direction, so this is text
+    /// only — no arrow. Low confidence shows nothing.
+    private var trendText: String? {
+        guard let m = measurement, m.method == .bleRssi, m.proximity != nil,
+              m.trendConfidence == .high, state != .signalLost else { return nil }
+        switch m.trend {
+        case .approaching: return "가까워지는 중"
+        case .receding: return "멀어지는 중"
+        case .steady: return "유지"
         }
     }
 

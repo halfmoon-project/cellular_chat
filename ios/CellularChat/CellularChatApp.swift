@@ -18,9 +18,13 @@ struct CellularChatApp: App {
 final class AppModel: ObservableObject {
     let pairStore = PairStore()
     let find: FindSessionCoordinator
+    private let systemPairObserver: SystemPairObserver
 
     init() {
         find = FindSessionCoordinator(pairStore: pairStore)
+        systemPairObserver = SystemPairObserver(pairStore: pairStore)
+        // Watch OS Wi-Fi Aware pair removals to drop stale routing hints (§8).
+        systemPairObserver.start()
     }
 
     func makePairingCoordinator() -> PairingCoordinator {

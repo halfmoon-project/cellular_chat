@@ -135,4 +135,23 @@ public enum RangingSelector {
         // 4. ble_rssi: always-available fallback.
         return RangingSelection(method: .bleRssi, edm: false)
     }
+
+    /// Whether `method` lies in the mutually-supported set of both CapabilitySets
+    /// (PROTOCOL_V2.md §14). This is the weaker receiver-side predicate that
+    /// `capabilityMismatch` enforcement uses; it is looser than `select`, which
+    /// picks exactly one method. `ble_rssi` is always supported.
+    public static func supports(method: RangingMethod,
+                                local: CapabilitySet, peer: CapabilitySet) -> Bool {
+        switch method {
+        case .niPeer:
+            return local.os == .ios && peer.os == .ios && local.uwbPresent && peer.uwbPresent
+        case .uwbAndroidOob:
+            return local.os == .android && peer.os == .android && local.uwbPresent && peer.uwbPresent
+        case .uwbAppleInterop:
+            return local.os != peer.os && local.uwbPresent && peer.uwbPresent
+                && local.appleInteropUwb && peer.appleInteropUwb
+        case .bleRssi:
+            return true
+        }
+    }
 }

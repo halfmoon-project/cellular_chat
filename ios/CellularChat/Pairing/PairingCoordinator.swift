@@ -14,7 +14,7 @@ final class PairingCoordinator: ObservableObject {
 
     enum Step: Equatable {
         case idle, connecting, handshaking, binding, proving
-        case awaitingFingerprint, completing, done
+        case awaitingFingerprint, completing, systemPairing, done
         case failed(String)
     }
 
@@ -77,6 +77,12 @@ final class PairingCoordinator: ObservableObject {
     // MARK: shared driver
 
     private func begin(role: PairRole, invitation: Invitation, transport: PeerTransport, alias: String) {
+        // §4: a pairId already committed means this invitation was consumed by a
+        // prior pairing. Reject rather than overwrite the pinned key and record.
+        guard pairStore.record(forPairId: invitation.pairId) == nil else {
+            step = .failed("이미 사용된 초대입니다.")
+            return
+        }
         self.role = role
         self.pairId = invitation.pairId
         self.alias = alias
@@ -190,6 +196,18 @@ final class PairingCoordinator: ObservableObject {
         try pairStore.commit(record, pairRoot: root)
         // Single-use invitation is now consumed; ephemeral state is dropped.
         invitation = nil
+        // When Wi-Fi Aware system pairing is supported, run it now to record the
+        // OS paired-device routing hint (§6 step 3 / §8); otherwise BLE-only
+        // pairing is already complete.
+        step = WiFiAwareTransport.systemPairingSupported() ? .systemPairing : .done
+    }
+
+    /// The Wi-Fi Aware system pairing sheet finished (§8). Persist the resulting
+    /// paired-device association as a routing hint, or nothing when the user
+    /// declined, then complete. Never blocks completion: the pair is already valid.
+    func finishSystemPairing(handle: UInt64?) {
+        guard step == .systemPairing else { return }
+        pairStore.setPairingHandle(handle.map(String.init), pairId: pairId)
         step = .done
     }
 

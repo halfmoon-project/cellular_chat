@@ -108,6 +108,18 @@ final class BLETransport: NSObject, PeerTransport {
 
     // MARK: helpers
 
+    /// Map a Core Bluetooth manager state to a connect failure (§13). A denied
+    /// authorization surfaces `.permissionRequired` so the UI can offer a settings
+    /// path; a genuinely absent radio surfaces `.radioUnavailable`. `nil` means
+    /// keep waiting (`.poweredOff`/`.resetting`/`.unknown` may still transition on).
+    static func connectFailure(for state: CBManagerState) -> TransportFailure? {
+        switch state {
+        case .unauthorized: return .permissionRequired
+        case .unsupported: return .radioUnavailable
+        default: return nil
+        }
+    }
+
     private func finishConnect(_ result: Result<Void, TransportFailure>) {
         guard let cont = connectContinuation else { return }
         connectContinuation = nil
@@ -194,14 +206,11 @@ final class BLETransport: NSObject, PeerTransport {
 
 extension BLETransport: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        switch central.state {
-        case .poweredOn:
+        if central.state == .poweredOn {
             central.scanForPeripherals(withServices: [BLEIDs.service],
                                        options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
-        case .unauthorized, .unsupported:
-            finishConnect(.failure(.radioUnavailable))
-        default:
-            break
+        } else if let failure = Self.connectFailure(for: central.state) {
+            finishConnect(.failure(failure))
         }
     }
 
@@ -292,8 +301,7 @@ extension BLETransport: CBPeripheralDelegate {
 
 extension BLETransport: CBPeripheralManagerDelegate {
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
-        switch peripheral.state {
-        case .poweredOn:
+        if peripheral.state == .poweredOn {
             let rendezvous = CBMutableCharacteristic(type: BLEIDs.rendezvous, properties: [.read],
                                                      value: nil, permissions: [.readable])
             let inbox = CBMutableCharacteristic(type: BLEIDs.inbox, properties: [.write],
@@ -308,10 +316,8 @@ extension BLETransport: CBPeripheralManagerDelegate {
                 CBAdvertisementDataServiceUUIDsKey: [BLEIDs.service],
                 CBAdvertisementDataLocalNameKey: "",
             ])
-        case .unauthorized, .unsupported:
-            finishConnect(.failure(.radioUnavailable))
-        default:
-            break
+        } else if let failure = Self.connectFailure(for: peripheral.state) {
+            finishConnect(.failure(failure))
         }
     }
 

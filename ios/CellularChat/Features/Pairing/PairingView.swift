@@ -11,6 +11,7 @@ struct PairingView: View {
     @State private var mode: Mode = .choose
     @State private var pasteText = ""
     @State private var alias = ""
+    @State private var showSystemPairing = false
 
     enum Mode { case choose, invite, joinScan, joinPaste }
 
@@ -29,7 +30,18 @@ struct PairingView: View {
                     }
                 }
                 .onChange(of: coordinator.step) { _, step in
+                    if step == .systemPairing { showSystemPairing = true }
                     if step == .done { dismiss() }
+                }
+                // §6 step 3 / §8: when Wi-Fi Aware is supported, run the OS
+                // app-to-app pairing after the crypto pairing commits, then persist
+                // the paired-device routing hint. BLE-only pairing skips this.
+                .sheet(isPresented: $showSystemPairing) {
+                    WiFiAwarePairingSheet { handle in
+                        showSystemPairing = false
+                        coordinator.finishSystemPairing(handle: handle)
+                    }
+                    .ignoresSafeArea()
                 }
         }
     }

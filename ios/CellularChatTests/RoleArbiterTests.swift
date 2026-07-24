@@ -36,4 +36,37 @@ final class RoleArbiterTests: XCTestCase {
         XCTAssertTrue(RoleArbiter.bytewiseLess([0x01, 0x02], [0x01, 0x02, 0x00]))  // prefix is smaller
         XCTAssertFalse(RoleArbiter.bytewiseLess([0x01, 0x02], [0x01, 0x02]))       // equal is not less
     }
+
+    // MARK: Find-session initiator side (§4/§9/§10)
+
+    func testUnknownOrCrossPlatformKeepsInitiatorDefault() {
+        let big = [UInt8](repeating: 0xFF, count: 32)
+        let small = [UInt8](repeating: 0x00, count: 32)
+        // A not-yet-known peer keeps the default iOS-initiator direction whatever the keys say.
+        XCTAssertTrue(RoleArbiter.localIsInitiatorSide(peerPlatform: nil, localStatic: big, peerStatic: small))
+        XCTAssertTrue(RoleArbiter.localIsInitiatorSide(peerPlatform: nil, localStatic: small, peerStatic: big))
+        // A cross-platform (Android) peer likewise keeps iOS as the initiator.
+        XCTAssertTrue(RoleArbiter.localIsInitiatorSide(peerPlatform: .android, localStatic: big, peerStatic: small))
+    }
+
+    func testSamePlatformInitiatorSideDerivedFromKeys() {
+        let small: [UInt8] = [0x00, 0x10]
+        let big: [UInt8] = [0x00, 0x20]
+        // iOS↔iOS: the bytewise-smaller key is the initiator side (central/subscriber/initiator).
+        XCTAssertTrue(RoleArbiter.localIsInitiatorSide(peerPlatform: .ios, localStatic: small, peerStatic: big))
+        XCTAssertFalse(RoleArbiter.localIsInitiatorSide(peerPlatform: .ios, localStatic: big, peerStatic: small))
+    }
+
+    // MARK: Duplicate resolution from this device's view (§10)
+
+    func testKeepNewDuplicateResolvesByInitiatorKey() {
+        let small: [UInt8] = [0x01, 0x00]
+        let big: [UInt8] = [0x01, 0x01]
+        // We initiated the new connection: it wins iff our key is the smaller one.
+        XCTAssertTrue(RoleArbiter.keepNewDuplicate(localInitiatedNew: true, localStatic: small, peerStatic: big))
+        XCTAssertFalse(RoleArbiter.keepNewDuplicate(localInitiatedNew: true, localStatic: big, peerStatic: small))
+        // The peer initiated the new connection: it wins iff the peer's key is smaller.
+        XCTAssertTrue(RoleArbiter.keepNewDuplicate(localInitiatedNew: false, localStatic: big, peerStatic: small))
+        XCTAssertFalse(RoleArbiter.keepNewDuplicate(localInitiatedNew: false, localStatic: small, peerStatic: big))
+    }
 }

@@ -7,6 +7,7 @@ struct PeopleView: View {
     @EnvironmentObject private var appModel: AppModel
     @State private var pairs: [PairRecord] = []
     @State private var showingPairing = false
+    @State private var settingsPair: PairRecord?
 
     var body: some View {
         List {
@@ -24,6 +25,9 @@ struct PeopleView: View {
                 .swipeActions {
                     Button("해제", role: .destructive) { revoke(pair) }
                 }
+                .swipeActions(edge: .leading) {
+                    Button("설정") { settingsPair = pair }.tint(.gray)
+                }
             }
         }
         .navigationTitle("사람")
@@ -39,6 +43,9 @@ struct PeopleView: View {
         }
         .sheet(isPresented: $showingPairing, onDismiss: refresh) {
             PairingView(pairStore: appModel.pairStore)
+        }
+        .sheet(item: $settingsPair, onDismiss: refresh) { pair in
+            PairSettingsView(pair: pair)
         }
         .onAppear(perform: refresh)
     }

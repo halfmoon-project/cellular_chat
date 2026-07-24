@@ -36,6 +36,31 @@ final class CapabilityTests: XCTestCase {
         }
     }
 
+    func testSupportsMutuallySupportedSet() {
+        // §14 (Feature B) receiver-side predicate over the two bound CapabilitySets.
+        let iosUwb = CapabilitySet(os: .ios, uwbPresent: true, appleInteropUwb: true)
+        let iosNoUwb = CapabilitySet(os: .ios)
+        let androidUwb = CapabilitySet(os: .android, uwbPresent: true, appleInteropUwb: true)
+        let androidNoInterop = CapabilitySet(os: .android, uwbPresent: true)
+
+        // ni_peer: both ios + both uwbPresent.
+        XCTAssertTrue(RangingSelector.supports(method: .niPeer, local: iosUwb, peer: iosUwb))
+        XCTAssertFalse(RangingSelector.supports(method: .niPeer, local: iosUwb, peer: iosNoUwb))
+        XCTAssertFalse(RangingSelector.supports(method: .niPeer, local: iosUwb, peer: androidUwb))
+
+        // uwb_android_oob: both android + both uwbPresent.
+        XCTAssertTrue(RangingSelector.supports(method: .uwbAndroidOob, local: androidUwb, peer: androidUwb))
+        XCTAssertFalse(RangingSelector.supports(method: .uwbAndroidOob, local: iosUwb, peer: androidUwb))
+
+        // uwb_apple_interop: mixed os + both uwbPresent + both appleInteropUwb.
+        XCTAssertTrue(RangingSelector.supports(method: .uwbAppleInterop, local: iosUwb, peer: androidUwb))
+        XCTAssertFalse(RangingSelector.supports(method: .uwbAppleInterop, local: iosUwb, peer: androidNoInterop))
+        XCTAssertFalse(RangingSelector.supports(method: .uwbAppleInterop, local: iosUwb, peer: iosUwb))
+
+        // ble_rssi: always supported.
+        XCTAssertTrue(RangingSelector.supports(method: .bleRssi, local: iosNoUwb, peer: androidNoInterop))
+    }
+
     func testCapabilitySetForwardCompatibility() throws {
         // Unknown keys ignored; missing keys default to false/empty (§11).
         let cbor = CBOR.map([

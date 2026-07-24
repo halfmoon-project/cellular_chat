@@ -41,6 +41,12 @@ final class RangingCoordinator: ObservableObject {
     /// every ranging body (§10/§12).
     var sendMessage: ((SessionMsgType, CBOR) -> Void)?
 
+    /// Raised when an inbound ranging message carries a `method` outside the
+    /// mutually-supported set of the two bound CapabilitySets (§14, Feature B).
+    /// The session layer answers with `disconnect{reason: capabilityMismatch}`
+    /// and a hard `FATAL` — never a ranging fallback.
+    var onCapabilityMismatch: (() -> Void)?
+
     private let peerRanger = ApplePeerRanger()
     private let interopRanger = AndroidInteropRanger()
     private let rssiFilter = RSSIProximityFilter()
@@ -56,6 +62,12 @@ final class RangingCoordinator: ObservableObject {
     private var currentAttemptId: UInt64?
     private var startedAttempt: UInt64?
     private var isOfferer = false
+
+    // The two CapabilitySets bound to the logical session (§14, Feature B), and
+    // the method offered for the current attempt (accept-divergence check).
+    private var localCaps: CapabilitySet?
+    private var peerCaps: CapabilitySet?
+    private var offeredMethod: RangingMethod?
 
     init() {
         peerRanger.onSendToken = { [weak self] data in self?.sendRangingData(.niToken, data) }
@@ -79,11 +91,14 @@ final class RangingCoordinator: ObservableObject {
     func start(local: CapabilitySet, peer: CapabilitySet, isInitiator: Bool) {
         let selection = RangingSelector.select(local: local, peer: peer)
         self.selection = selection
+        self.localCaps = local
+        self.peerCaps = peer
         active = true
         backoff.reset()
         attemptCounter = 0
         currentAttemptId = nil
         startedAttempt = nil
+        offeredMethod = nil
         // The ni_peer ranging controller (offerer) is the Noise initiator; every
         // other method is peer-driven (Android sends apple_config directly, never
         // an offer) or a local fallback, so iOS offers only for ni_peer.
@@ -112,6 +127,7 @@ final class RangingCoordinator: ObservableObject {
             if isOfferer {
                 let id = nextAttemptId()
                 currentAttemptId = id
+                offeredMethod = .niPeer
                 stateText = "UWB 측정 협상 중"
                 sendMap(.rangingOffer, [CBORPair(.uint(1), .uint(id)),
                                         CBORPair(.uint(2), .uint(RangingMethod.niPeer.rawValue))])
@@ -140,9 +156,20 @@ final class RangingCoordinator: ObservableObject {
             guard let id = attemptId,
                   let raw = body.value(forKey: 2)?.asUInt,
                   let method = RangingMethod(rawValue: raw) else { return }
+            // §14 (B.2.2): the offered method must be mutually supported.
+            guard methodSupported(method) else { raiseCapabilityMismatch(); return }
             onRangingOffer(attemptId: id, method: method)
         case .rangingAccept:
-            if let id = attemptId { onRangingAccept(attemptId: id) }
+            guard let id = attemptId,
+                  let raw = body.value(forKey: 2)?.asUInt,
+                  let method = RangingMethod(rawValue: raw) else { return }
+            // §14 (B.2.2): accepted method mutually supported; (B.2.3): it must
+            // match the method we offered for the same attempt.
+            guard methodSupported(method) else { raiseCapabilityMismatch(); return }
+            if id == currentAttemptId, let offered = offeredMethod, method != offered {
+                raiseCapabilityMismatch(); return
+            }
+            onRangingAccept(attemptId: id)
         case .rangingStart:
             if let id = attemptId { onRangingStart(attemptId: id) }
         case .rangingStop:
@@ -150,17 +177,33 @@ final class RangingCoordinator: ObservableObject {
         case .rangingError:
             if let id = attemptId { onRangingError(attemptId: id) }
         case .niToken:
+            // §14 (B.2.4): ni_token implies ni_peer.
+            guard methodSupported(.niPeer) else { raiseCapabilityMismatch(); return }
             if let id = attemptId, let data = body.value(forKey: 2)?.asBytes {
                 onNiToken(attemptId: id, data: Data(data))
             }
         case .appleConfig:
+            // §14 (B.2.4): apple_config implies uwb_apple_interop.
+            guard methodSupported(.uwbAppleInterop) else { raiseCapabilityMismatch(); return }
             if let id = attemptId, let data = body.value(forKey: 2)?.asBytes {
                 onAppleConfig(attemptId: id, data: Data(data))
             }
+        case .oobData:
+            // §14 (B.2.4): oob_data implies uwb_android_oob (never supported on iOS).
+            guard methodSupported(.uwbAndroidOob) else { raiseCapabilityMismatch(); return }
         default:
-            break   // apple_shareable / oob_data are outbound-only on iOS
+            break   // apple_shareable is outbound-only on iOS
         }
     }
+
+    /// Whether `method` lies in the mutually-supported set of the two bound
+    /// CapabilitySets (§14, Feature B). Absent caps → unsupported.
+    private func methodSupported(_ method: RangingMethod) -> Bool {
+        guard let localCaps, let peerCaps else { return false }
+        return RangingSelector.supports(method: method, local: localCaps, peer: peerCaps)
+    }
+
+    private func raiseCapabilityMismatch() { onCapabilityMismatch?() }
 
     // Controlee: the peer offered ranging → accept and await ranging_start (§8).
     private func onRangingOffer(attemptId: UInt64, method: RangingMethod) {
@@ -229,7 +272,8 @@ final class RangingCoordinator: ObservableObject {
         // Only surface RSSI proximity when UWB is not currently providing a sample.
         if selection?.method == .bleRssi || measurement == nil || measurement?.proximity != nil {
             measurement = Measurement(timestamp: Date(), method: .bleRssi,
-                                      distanceMeters: nil, horizontalAngleRadians: nil, proximity: band)
+                                      distanceMeters: nil, horizontalAngleRadians: nil, proximity: band,
+                                      trend: rssiFilter.trend, trendConfidence: rssiFilter.trendConfidence)
         }
     }
 
@@ -253,7 +297,8 @@ final class RangingCoordinator: ObservableObject {
     private func fallbackToRSSI() {
         measurement = Measurement(timestamp: Date(), method: .bleRssi,
                                   distanceMeters: nil, horizontalAngleRadians: nil,
-                                  proximity: rssiFilter.band)
+                                  proximity: rssiFilter.band,
+                                  trend: rssiFilter.trend, trendConfidence: rssiFilter.trendConfidence)
         stateText = "UWB 신호 없음 · 근접도만 표시"
     }
 

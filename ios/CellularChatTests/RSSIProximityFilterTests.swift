@@ -44,4 +44,62 @@ final class RSSIProximityFilterTests: XCTestCase {
         XCTAssertEqual(RSSIProximityFilter.median([-60, -40]), -50)
         XCTAssertEqual(RSSIProximityFilter.median([-70, -50, -60]), -60)
     }
+
+    // MARK: - Trend (shared contract Feature C)
+
+    /// The pure least-squares trend is fully determined by the fixed parameters,
+    /// so these expected enum values MUST match the Android implementation.
+    func testTrendRisingIsApproachingHighConfidence() {
+        let y = (0..<8).map { -80.0 + Double($0) }        // slope +1, no residual
+        let (trend, conf) = RSSIProximityFilter.regressionTrend(y)
+        XCTAssertEqual(trend, .approaching)
+        XCTAssertEqual(conf, .high)
+    }
+
+    func testTrendFallingIsReceding() {
+        let y = (0..<8).map { -70.0 - Double($0) }        // slope -1
+        let (trend, conf) = RSSIProximityFilter.regressionTrend(y)
+        XCTAssertEqual(trend, .receding)
+        XCTAssertEqual(conf, .high)
+    }
+
+    func testTrendFlatIsSteady() {
+        let (trend, _) = RSSIProximityFilter.regressionTrend([Double](repeating: -70, count: 8))
+        XCTAssertEqual(trend, .steady)
+    }
+
+    func testTrendTooFewSamplesIsSteadyLow() {
+        let (trend, conf) = RSSIProximityFilter.regressionTrend([-80, -79, -78])   // k=3 < 4
+        XCTAssertEqual(trend, .steady)
+        XCTAssertEqual(conf, .low)
+    }
+
+    func testTrendNoisyRisingIsApproachingButLowConfidence() {
+        // slope ≈ 1.14 (>= +0.5 → approaching) but residual variance ≈ 22.85 > 16.
+        let y: [Double] = [-75, -83, -71, -79, -67, -75]
+        let (trend, conf) = RSSIProximityFilter.regressionTrend(y)
+        XCTAssertEqual(trend, .approaching)
+        XCTAssertEqual(conf, .low)
+    }
+
+    func testTrendSlopeBoundaryIsApproaching() {
+        let y = (0..<6).map { -80.0 + 0.5 * Double($0) }  // slope exactly +0.5
+        let (trend, _) = RSSIProximityFilter.regressionTrend(y)
+        XCTAssertEqual(trend, .approaching)
+    }
+
+    func testIntegratedRisingRampReportsApproaching() {
+        let filter = RSSIProximityFilter()
+        for v in stride(from: -95.0, through: -55.0, by: 2.0) { filter.add(rssi: v) }
+        XCTAssertEqual(filter.trend, .approaching)
+        XCTAssertEqual(filter.trendConfidence, .high)
+    }
+
+    func testResetClearsTrend() {
+        let filter = RSSIProximityFilter()
+        for v in stride(from: -95.0, through: -55.0, by: 2.0) { filter.add(rssi: v) }
+        filter.reset()
+        XCTAssertEqual(filter.trend, .steady)
+        XCTAssertEqual(filter.trendConfidence, .low)
+    }
 }
