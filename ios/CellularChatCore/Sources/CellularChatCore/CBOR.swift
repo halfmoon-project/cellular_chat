@@ -167,6 +167,14 @@ public enum CBORCoder {
             }
         }
 
+        /// A byte/text length or array/map count can never exceed the bytes
+        /// remaining in the input (each element needs >= 1 byte), so reject it
+        /// before allocating — an attacker-controlled count must throw, not abort.
+        mutating func boundedCount(_ value: UInt64) throws -> Int {
+            guard value <= UInt64(data.count - pos) else { throw ProtocolError.cborTruncated }
+            return Int(value)
+        }
+
         mutating func decodeItem() throws -> (value: CBOR, encoded: [UInt8]) {
             let start = pos
             let (major, value) = try readHead()
@@ -176,26 +184,23 @@ public enum CBORCoder {
             case 1:
                 return (.nint(value), Array(data[start..<pos]))
             case 2:
-                guard value <= UInt64(Int.max) else { throw ProtocolError.cborTruncated }
-                let bytes = Array(try take(Int(value)))
+                let bytes = Array(try take(boundedCount(value)))
                 return (.bytes(bytes), Array(data[start..<pos]))
             case 3:
-                guard value <= UInt64(Int.max) else { throw ProtocolError.cborTruncated }
-                let raw = Array(try take(Int(value)))
+                let raw = Array(try take(boundedCount(value)))
                 guard let s = String(bytes: raw, encoding: .utf8) else {
                     throw ProtocolError.cborInvalidUTF8
                 }
                 return (.text(s), Array(data[start..<pos]))
             case 4:
-                guard value <= UInt64(Int.max) else { throw ProtocolError.cborTruncated }
                 var items: [CBOR] = []
-                items.reserveCapacity(Int(value))
+                items.reserveCapacity(try boundedCount(value))
                 for _ in 0..<value {
                     items.append(try decodeItem().value)
                 }
                 return (.array(items), Array(data[start..<pos]))
             case 5:
-                guard value <= UInt64(Int.max) else { throw ProtocolError.cborTruncated }
+                _ = try boundedCount(value)
                 var pairs: [CBORPair] = []
                 var prevKeyEnc: [UInt8]? = nil
                 for _ in 0..<value {
