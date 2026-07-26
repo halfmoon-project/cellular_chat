@@ -13,12 +13,15 @@ final class FindSessionCoordinator: ObservableObject {
     @Published private(set) var state: FindState = .idle
     @Published private(set) var reason: ReasonCode?
     @Published private(set) var selectedPair: PairRecord?
+    /// The peer's negotiated CapabilitySet, exposed for the per-pair feature
+    /// status line. Mirrors `boundPeerCaps` (set on first CAPS, cleared with it).
+    @Published private(set) var peerCaps: CapabilitySet?
 
     let pairStore: PairStore
     let ranging = RangingCoordinator()
     let background = FindLiveActivityController()
     private let transports = TransportCoordinator()
-    private let localCaps = LocalCapabilities.current()
+    let localCaps = LocalCapabilities.current()
     private let haptics = FindHaptics()
 
     /// VoiceOver announcement sink; overridable in tests. Defaults to posting a
@@ -241,6 +244,7 @@ final class FindSessionCoordinator: ObservableObject {
                 // (§14/§10) and persist the peer's platform (§11) so the next arm
                 // can derive the same-platform transport roles (§9/§10).
                 self?.boundPeerCaps = caps
+                self?.peerCaps = caps
                 self?.pairStore.setPeerPlatform(caps.os, pairId: pair.pairId)
             }
             runner.onConnected = { [weak self] in
@@ -585,6 +589,7 @@ final class FindSessionCoordinator: ObservableObject {
         upgradeBackoffUntil = nil
         upgradeBackoff.reset()
         boundPeerCaps = nil
+        peerCaps = nil
         logicalSid = nil
     }
 

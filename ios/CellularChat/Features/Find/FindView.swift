@@ -44,6 +44,15 @@ private struct FindContent: View {
                           statusText: find.statusText,
                           peerName: pair.alias)
 
+            if isArmed {
+                Text(PairFeatureStatus.derive(local: find.localCaps,
+                                              peer: find.peerCaps,
+                                              selection: ranging.selection).line)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
             if let coachingText {
                 Text(coachingText)
                     .font(.footnote)

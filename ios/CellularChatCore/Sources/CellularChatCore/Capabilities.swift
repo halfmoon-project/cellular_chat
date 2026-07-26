@@ -112,6 +112,11 @@ public enum RangingMethod: UInt64, Equatable {
 public struct RangingSelection: Equatable {
     public let method: RangingMethod
     public let edm: Bool
+
+    public init(method: RangingMethod, edm: Bool) {
+        self.method = method
+        self.edm = edm
+    }
 }
 
 public enum RangingSelector {
