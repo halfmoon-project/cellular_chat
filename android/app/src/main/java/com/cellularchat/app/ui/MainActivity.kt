@@ -333,6 +333,7 @@ class MainActivity : Activity() {
     private lateinit var findMeasurement: TextView
     private lateinit var findTrendLabel: TextView
     private lateinit var findTechLabel: TextView
+    private lateinit var findUwbReasonLabel: TextView
     private var haptics: FindHaptics? = null
 
     private fun showFind(record: PairRecord) {
@@ -365,6 +366,10 @@ class MainActivity : Activity() {
 
         findTechLabel = muted("").apply { visibility = View.GONE }
         container.addView(findTechLabel)
+
+        // Per-pair "why not UWB" line (capability-derived or runtime fallback).
+        findUwbReasonLabel = muted("").apply { visibility = View.GONE }
+        container.addView(findUwbReasonLabel)
 
         container.addView(muted(getString(R.string.find_searching_note)))
         container.addView(muted(getString(R.string.find_honesty_note)))
@@ -421,6 +426,15 @@ class MainActivity : Activity() {
         } else {
             findTechLabel.visibility = View.GONE
         }
+        // Capability reason first (pair-level, localized); otherwise the runtime
+        // fallback detail from the ranging layer.
+        val uwbReason = state.uwbUnavailableReason?.let { uwbReasonLabel(it) } ?: state.rangingFallbackDetail
+        if (uwbReason != null) {
+            findUwbReasonLabel.visibility = View.VISIBLE
+            findUwbReasonLabel.text = uwbReason
+        } else {
+            findUwbReasonLabel.visibility = View.GONE
+        }
         findReasonLabel.text = if (state.state == FindState.SEARCHING) {
             getString(R.string.find_searching_note)
         } else {
@@ -444,6 +458,16 @@ class MainActivity : Activity() {
             },
         )
     }
+
+    private fun uwbReasonLabel(reason: UwbUnavailableReason): String = getString(
+        when (reason) {
+            UwbUnavailableReason.PEER_CAPS_UNKNOWN -> R.string.uwb_reason_peer_caps_unknown
+            UwbUnavailableReason.PEER_NO_UWB -> R.string.uwb_reason_peer_no_uwb
+            UwbUnavailableReason.PEER_NO_INTEROP -> R.string.uwb_reason_peer_no_interop
+            UwbUnavailableReason.LOCAL_NO_UWB -> R.string.uwb_reason_local_no_uwb
+            UwbUnavailableReason.LOCAL_NO_INTEROP -> R.string.uwb_reason_local_no_interop
+        },
+    )
 
     private fun isMeasuring(state: FindState): Boolean =
         state == FindState.DIRECTION_AVAILABLE ||

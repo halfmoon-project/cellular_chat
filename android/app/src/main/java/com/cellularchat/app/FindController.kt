@@ -24,6 +24,7 @@ import com.cellularchat.app.core.protocol.FindState
 import com.cellularchat.app.core.protocol.SecureSession
 import com.cellularchat.app.core.protocol.SessionEnvelope
 import com.cellularchat.app.core.protocol.SessionMsgType
+import com.cellularchat.app.ui.UwbUnavailableReason
 import com.cellularchat.app.identity.PairRecord
 import com.cellularchat.app.ranging.AndroidOobController
 import com.cellularchat.app.ranging.Measurement
@@ -245,6 +246,7 @@ object FindController {
             boundPeerCaps = peerCaps
             boundSid = peerSessionReady.sid
             val local = capabilities?.capabilities() ?: return
+            coordinator?.onUwbUnavailableReason(UwbUnavailableReason.of(local, peerCaps))
             ranging?.select(local, peerCaps)
             coordinator?.onRangingStarting()
             val peerUuid = UUID.nameUUIDFromBytes(record?.peerStaticPublic ?: ByteArray(0))
@@ -567,7 +569,7 @@ object FindController {
             override fun onProximity(band: ProximityBand, trend: RssiTrend, confidence: TrendConfidence) {
                 handler.post { coordinator?.onProximity(band, trend, confidence) }
             }
-            override fun onRangingUnavailable(detail: String) { handler.post { coordinator?.onRangingUnavailable() } }
+            override fun onRangingUnavailable(detail: String) { handler.post { coordinator?.onRangingUnavailable(detail) } }
             override fun onTechnology(technology: Int) { handler.post { coordinator?.onTechnology(technology) } }
             override fun onSignalLost() { handler.post { coordinator?.onSignalLost(ReasonCodes.TRANSPORT_LOST) } }
             override fun onCapabilityMismatch() { handler.post { onCapabilityMismatchDetected() } }

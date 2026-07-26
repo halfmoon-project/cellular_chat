@@ -8,6 +8,7 @@ import com.cellularchat.app.ranging.Measurement
 import com.cellularchat.app.ranging.ProximityBand
 import com.cellularchat.app.ranging.RssiTrend
 import com.cellularchat.app.ranging.TrendConfidence
+import com.cellularchat.app.ui.UwbUnavailableReason
 
 /**
  * Observable snapshot of a Find session for the UI (single source of truth).
@@ -27,6 +28,12 @@ data class FindUiState(
     // HIGH and only alongside a proximity value. Cleared on `signalLost`.
     val trend: RssiTrend = RssiTrend.STEADY,
     val trendConfidence: TrendConfidence = TrendConfidence.LOW,
+    // Capability-derived reason why UWB is unavailable for this pair (§11);
+    // starts as "peer caps unknown" and is recomputed on each authentication.
+    val uwbUnavailableReason: UwbUnavailableReason? = UwbUnavailableReason.PEER_CAPS_UNKNOWN,
+    // Human-readable runtime fallback detail from the ranging layer (e.g. UWB
+    // start failed despite capable radios). Cleared on `signalLost`.
+    val rangingFallbackDetail: String? = null,
 )
 
 /**
@@ -69,6 +76,7 @@ class FindSessionCoordinator(
                 rangingTechnology = null,
                 trend = RssiTrend.STEADY,
                 trendConfidence = TrendConfidence.LOW,
+                rangingFallbackDetail = null,
             )
         }
         emit(next)
@@ -112,13 +120,21 @@ class FindSessionCoordinator(
         }
     }
 
-    fun onRangingUnavailable() =
-        dispatchWith(FindEvent.RANGING_UNAVAILABLE) { it.copy(rangingTechnology = null) }
+    fun onRangingUnavailable(detail: String? = null) =
+        dispatchWith(FindEvent.RANGING_UNAVAILABLE) {
+            it.copy(rangingTechnology = null, rangingFallbackDetail = detail)
+        }
 
     /** Records the technology the platform actually started ranging with (§8/§12).
      * Not a state transition — only annotates the current state for the UI. */
     @Synchronized
     fun onTechnology(technology: Int) = emit(uiState.copy(rangingTechnology = technology))
+
+    /** Records the capability-derived UWB availability reason for this pair
+     * (§11). Not a state transition — only annotates the state for the UI. */
+    @Synchronized
+    fun onUwbUnavailableReason(reason: UwbUnavailableReason?) =
+        emit(uiState.copy(uwbUnavailableReason = reason))
 
     // --- Loss / retry / termination ---
 

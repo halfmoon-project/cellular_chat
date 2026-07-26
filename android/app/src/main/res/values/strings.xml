@@ -56,6 +56,13 @@
     <string name="tech_wifi_rtt">Wi-Fi RTT</string>
     <string name="tech_ble_cs">블루투스 채널 사운딩</string>
 
+    <!-- Per-pair UWB unavailability reasons (capability-derived, §11) -->
+    <string name="uwb_reason_peer_caps_unknown">상대 기기 기능 확인 전</string>
+    <string name="uwb_reason_peer_no_uwb">상대 기기에 UWB 없음</string>
+    <string name="uwb_reason_peer_no_interop">상대 기기가 iPhone-Android 간 UWB 미지원</string>
+    <string name="uwb_reason_local_no_uwb">이 기기에 UWB 없음</string>
+    <string name="uwb_reason_local_no_interop">이 기기가 iPhone-Android 간 UWB 미지원</string>
+
     <!-- Accessibility -->
     <string name="cd_back">뒤로</string>
     <string name="cd_qr">초대 QR 코드</string>
