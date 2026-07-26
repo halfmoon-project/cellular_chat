@@ -16,6 +16,7 @@ final class SystemPairObserver {
     /// Begin observing. Gated on Wi-Fi Aware support so unsupported devices do
     /// nothing. Idempotent: a second call while already running is ignored.
     func start() {
+        guard #available(iOS 26.0, *) else { return }
         guard task == nil, LocalCapabilities.wifiAwareAvailable() else { return }
         task = Task { [weak self] in
             guard let self else { return }

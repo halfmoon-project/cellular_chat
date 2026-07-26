@@ -11,6 +11,11 @@ import DeviceDiscoveryUI
 /// `DDDevicePairingViewController` reports no completion of its own, so the newly
 /// paired device ID is recovered by diffing `WAPairedDevice.allDevices` around the
 /// presentation. That ID is a §8 routing hint only — never the security identity.
+///
+/// Type-level availability (not body guards): `WAPairedDevice.ID` appears in the
+/// stored callback type and `Coordinator` state, so it cannot be hidden inside
+/// method bodies.
+@available(iOS 26.0, *)
 struct WiFiAwarePairingSheet: UIViewControllerRepresentable {
     /// Fires once when the sheet is torn down, carrying the newly paired device ID
     /// if the system added one (nil when the user declined or none was added).

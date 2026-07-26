@@ -37,11 +37,15 @@ struct PairingView: View {
                 // app-to-app pairing after the crypto pairing commits, then persist
                 // the paired-device routing hint. BLE-only pairing skips this.
                 .sheet(isPresented: $showSystemPairing) {
-                    WiFiAwarePairingSheet { handle in
-                        showSystemPairing = false
-                        coordinator.finishSystemPairing(handle: handle)
+                    // Unreachable below iOS 26 (`systemPairingSupported()` is
+                    // false there), but the type itself is 26-only.
+                    if #available(iOS 26.0, *) {
+                        WiFiAwarePairingSheet { handle in
+                            showSystemPairing = false
+                            coordinator.finishSystemPairing(handle: handle)
+                        }
+                        .ignoresSafeArea()
                     }
-                    .ignoresSafeArea()
                 }
         }
     }

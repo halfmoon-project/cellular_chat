@@ -40,15 +40,18 @@ final class WiFiAwareTransport: PeerTransport {
         self.connectTimeout = connectTimeout
     }
 
-    /// Runtime gate: the radio must report the feature AND the fixed service must
-    /// be declared in Info.plist (otherwise `allServices` has no entry).
+    /// Runtime gate: the OS must have the framework (iOS 26+), the radio must
+    /// report the feature AND the fixed service must be declared in Info.plist
+    /// (otherwise `allServices` has no entry).
     var isAvailable: Bool {
-        WACapabilities.supportedFeatures.contains(.wifiAware)
+        guard #available(iOS 26.0, *) else { return false }
+        return WACapabilities.supportedFeatures.contains(.wifiAware)
             && WASubscribableService.allServices[Self.serviceName] != nil
     }
 
     /// Whether the system app-to-app pairing UI can run for our service.
     static func systemPairingSupported() -> Bool {
+        guard #available(iOS 26.0, *) else { return false }
         guard let svc = WAPublishableService.allServices[serviceName] else { return false }
         let provider = WAPublisherListener.wifiAware(.connecting(to: svc, from: .allPairedDevices))
         return DDDevicePairingViewController.isSupported(provider)
@@ -91,6 +94,9 @@ final class WiFiAwareTransport: PeerTransport {
     // MARK: subscriber (initiator)
 
     private func startSubscriber() {
+        guard #available(iOS 26.0, *) else {
+            finishConnect(.failure(.unsupported)); return
+        }
         guard let svc = WASubscribableService.allServices[Self.serviceName] else {
             finishConnect(.failure(.unsupported)); return
         }
@@ -109,6 +115,9 @@ final class WiFiAwareTransport: PeerTransport {
     // MARK: publisher (responder)
 
     private func startPublisher() {
+        guard #available(iOS 26.0, *) else {
+            finishConnect(.failure(.unsupported)); return
+        }
         guard let svc = WAPublishableService.allServices[Self.serviceName] else {
             finishConnect(.failure(.unsupported)); return
         }

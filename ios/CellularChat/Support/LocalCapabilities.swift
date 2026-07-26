@@ -36,7 +36,8 @@ enum LocalCapabilities {
     }
 
     static func wifiAwareAvailable() -> Bool {
-        WACapabilities.supportedFeatures.contains(.wifiAware)
+        guard #available(iOS 26.0, *) else { return false }
+        return WACapabilities.supportedFeatures.contains(.wifiAware)
     }
 
     static func bleCentralAvailable() -> Bool {
