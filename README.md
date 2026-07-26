@@ -1,11 +1,24 @@
 # Cellular Chat — 두 사람 전용 서버리스 파인더
 
 서버, 클라우드 릴레이, 비콘, 제3의 기기 없이 두 대의 스마트폰이 서로를
-다시 찾아내는 네이티브 iOS(26+)·Android(16/API 36+) 앱입니다. 한 번 QR로
+다시 찾아내는 네이티브 iOS(18+)·Android(16/API 36+) 앱입니다. 한 번 QR로
 페어링하면, 이후 양쪽이 시간 제한이 있는 **찾기 모드**를 켰을 때 직접
 P2P 전파(Wi-Fi Aware → Nearby Connections → BLE)로 재발견·상호 인증하고,
 기기 조합이 지원하는 최선의 측정(UWB 방향+거리 → 거리만 → BLE 근접
 밴드)을 보여줍니다.
+
+### iOS 버전별 기능 매트릭스
+
+- **iOS 18+ (전체 공통)**: BLE 발견·Noise 인증·메시징, QR 페어링,
+  iPhone↔iPhone NI 레인징(EDM 포함, 하드웨어 지원 시), Live Activity,
+  RSSI 근접 밴드 폴백.
+- **iOS 26+**: Wi-Fi Aware 고속 전송/승격, 시스템 페어링 시트,
+  `WAPairedDevice` 재발견 숏컷.
+- **iOS 26.1+**: iPhone↔Android interop UWB (R4 inner config가 26.1
+  전용이라 게이트를 내리지 않음 — `shared/UWB_INTEROP.md` 참조).
+  미달 조합은 capability 협상으로 깨끗하게 `ble_rssi`로 강등되며, Find
+  화면의 페어별 상태 라인이 "왜 안 되는지"를 capability 기준으로
+  표시합니다.
 
 이전의 LAN 채팅 프로토타입은 제거되었습니다. 채팅·파일 전송은 범위에
 없으며, 전체 계획과 제품 계약은 [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)에
@@ -86,6 +99,10 @@ Aware entitlement(`com.apple.developer.wifi-aware`)가 프로비저닝에
   전파는 검증되지 않았습니다. IMPLEMENTATION_PLAN.md의 Phase 1 spike
   (교차 Wi-Fi Aware / 교차 UWB / BLE / Noise 상호운용)와 Phase 10
   기기 매트릭스가 릴리스 게이트로 남아 있습니다.
+- **iOS 18 런타임**: 배포 타깃 18.0으로 컴파일·링크되고 WiFiAware/
+  DeviceDiscoveryUI가 weak-link(`LC_LOAD_WEAK_DYLIB`, otool로 확인)임은
+  검증됐지만, 로컬에 iOS 18.x 시뮬레이터 런타임이 없어 18.x 부팅
+  스모크는 미실행입니다.
 - **교차 UWB**: Apple developer-preview R4 스펙 기반이므로 실험적이며,
   iOS 26.1+/Android 16 조합의 실기기 게이트 통과 전에는 기본
   비활성입니다(해당 조합은 근접 밴드로 동작).
