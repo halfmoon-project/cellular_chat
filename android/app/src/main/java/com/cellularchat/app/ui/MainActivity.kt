@@ -265,6 +265,11 @@ class MainActivity : Activity() {
             runOnUiThread {
                 toast(getString(R.string.pair_committed, record.alias))
                 showPeople()
+                // ponytail: fixed 1s grace so the last pair_complete flushes over
+                // GATT before teardown; wait on the write callback if it proves short.
+                val handle = pairingHandle
+                pairingHandle = null
+                container.postDelayed({ runCatching { handle?.close() } }, 1_000)
             }
         }
 

@@ -186,7 +186,10 @@ class PairingCoordinator(
         finished = true
         store.upsert(record)          // consumed: this pairId will not pair again.
         events.onCommitted(record)
-        link?.close()
+        // Deliberately does NOT close the link: for the side that confirms second,
+        // its own pair_complete was queued microseconds ago and BLE writes flush
+        // asynchronously — closing here dropped it, leaving the peer unpaired.
+        // The UI owns teardown (MainActivity.onCommitted / cancelPairing).
         wipe()
     }
 
