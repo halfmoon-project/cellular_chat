@@ -13,6 +13,8 @@ import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -28,6 +30,7 @@ import com.cellularchat.app.FindController
 import com.cellularchat.app.FindUiState
 import com.cellularchat.app.R
 import com.cellularchat.app.core.protocol.FindState
+import com.cellularchat.app.identity.LocalDeviceName
 import com.cellularchat.app.identity.PairRecord
 import com.cellularchat.app.identity.PairStore
 import com.cellularchat.app.pairing.BlePairing
@@ -90,6 +93,8 @@ class MainActivity : Activity() {
         cancelPairing()
         container.removeAllViews()
         container.addView(title(getString(R.string.people_title)))
+        container.addView(muted(getString(R.string.my_device_name_note)))
+        container.addView(deviceNameInput())
 
         val records = store.active()
         if (records.isEmpty()) {
@@ -173,6 +178,8 @@ class MainActivity : Activity() {
     private fun showPair() {
         container.removeAllViews()
         container.addView(backTitle(getString(R.string.pair_title)) { showPeople() })
+        container.addView(muted(getString(R.string.my_device_name_note)))
+        container.addView(deviceNameInput())
         container.addView(primaryButton(getString(R.string.pair_create)) { showInviter() })
         container.addView(spacer())
         container.addView(plainButton(getString(R.string.pair_join)) { showJoiner() })
@@ -329,7 +336,7 @@ class MainActivity : Activity() {
             return
         }
         showFind(record)
-        FindController.arm(this, record, AndroidCapabilityProvider(this, "2.0.0"), durationMillis)
+        FindController.arm(this, record, store, AndroidCapabilityProvider(this, "2.0.0"), durationMillis)
     }
 
     private lateinit var findStateLabel: TextView
@@ -638,6 +645,19 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT,
         ).apply { bottomMargin = pad(3) }
+    }
+
+    /** This device's self-declared §11 `deviceName`, edited in place: the label a
+     * peer adopts for us while they have not named us themselves. */
+    private fun deviceNameInput(): View = editText(getString(R.string.my_device_name)).apply {
+        setText(LocalDeviceName.get(this@MainActivity))
+        addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: Editable?) {
+                LocalDeviceName.set(this@MainActivity, s?.toString().orEmpty())
+            }
+        })
     }
 
     private fun editText(hint: String) = EditText(this).apply {

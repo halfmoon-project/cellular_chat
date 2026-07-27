@@ -89,6 +89,20 @@ final class PairStore {
         save()
     }
 
+    /// Adopt the peer's self-declared `deviceName` (§11) as this pair's alias,
+    /// but only while the alias is still the untouched default — a name the user
+    /// typed or edited always wins. A no-op when blank or unchanged.
+    func adoptPeerDeviceName(_ name: String, pairId: [UInt8]) {
+        let trimmed = String(name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .prefix(CapabilitySet.maxDeviceNameLength))
+        let key = Data(pairId).base64EncodedString()
+        guard !trimmed.isEmpty, var record = records[key],
+              record.alias == PairRecord.defaultAlias, trimmed != record.alias else { return }
+        record.alias = trimmed
+        records[key] = record
+        save()
+    }
+
     /// Store or clear the Wi-Fi Aware system-pairing association (§8): an
     /// install-scoped routing hint, never the security identity. Cleared when the
     /// system pairing is removed (§8 observation); a no-op when unchanged.

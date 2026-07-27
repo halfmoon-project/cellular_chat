@@ -32,7 +32,8 @@ enum LocalCapabilities {
             appleInteropUwb: interop,
             niEdm: ni.supportsExtendedDistanceMeasurement,
             wifiRtt: false,                    // no public iOS Wi-Fi RTT API
-            backgroundRanging: false)          // no runtime probe; kept conservative
+            backgroundRanging: false,          // no runtime probe; kept conservative
+            deviceName: LocalDeviceName.current)
     }
 
     static func wifiAwareAvailable() -> Bool {

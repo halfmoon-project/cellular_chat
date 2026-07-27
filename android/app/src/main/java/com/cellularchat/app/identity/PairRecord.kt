@@ -29,6 +29,14 @@ data class PairRecord(
 
     fun pairIdHex(): String = pairId.joinToString("") { "%02x".format(it) }
 
+    companion object {
+        /** Placeholder alias used when the user names nobody at pairing time. The
+         * peer's §11 `deviceName` replaces it, and only it (§11 adoption rule).
+         * Changing this string stops adoption for records already stored under
+         * the old one — they would no longer compare equal to the default. */
+        const val DEFAULT_ALIAS = "상대"
+    }
+
     override fun equals(other: Any?): Boolean =
         other is PairRecord && other.pairId.contentEquals(pairId)
 

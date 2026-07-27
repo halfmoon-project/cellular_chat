@@ -21,7 +21,11 @@ final class FindSessionCoordinator: ObservableObject {
     let ranging = RangingCoordinator()
     let background = FindLiveActivityController()
     private let transports = TransportCoordinator()
-    let localCaps = LocalCapabilities.current()
+    /// Re-read once per armed session, then frozen: every runner of one session
+    /// (including an upgrade runner) must send a byte-identical CapabilitySet or
+    /// the peer disconnects with `capabilityMismatch` (§14). Re-reading here is
+    /// what lets a `deviceName` rename take effect from the next session (§11).
+    private(set) var localCaps = LocalCapabilities.current()
     private let haptics = FindHaptics()
 
     /// VoiceOver announcement sink; overridable in tests. Defaults to posting a
@@ -139,6 +143,7 @@ final class FindSessionCoordinator: ObservableObject {
         if state != .idle { stop() }
         state = .idle
         reason = nil
+        localCaps = LocalCapabilities.current()
         selectedPair = pair
         activePair = pair
         deadline = Date().addingTimeInterval(duration)
@@ -258,6 +263,7 @@ final class FindSessionCoordinator: ObservableObject {
                 self?.boundPeerCaps = caps
                 self?.peerCaps = caps
                 self?.pairStore.setPeerPlatform(caps.os, pairId: pair.pairId)
+                self?.pairStore.adoptPeerDeviceName(caps.deviceName, pairId: pair.pairId)
             }
             runner.onConnected = { [weak self] in
                 guard let self else { return }

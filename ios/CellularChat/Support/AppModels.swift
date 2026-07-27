@@ -17,6 +17,12 @@ struct PairRecord: Codable, Equatable, Identifiable {
                                   // install-scoped routing hint, never identity (§8)
     var revoked: Bool
 
+    /// Placeholder alias used when the user names nobody at pairing time. The
+    /// peer's §11 `deviceName` replaces it, and only it (§11 adoption rule).
+    /// Changing this string stops adoption for records already stored under the
+    /// old one — they would no longer compare equal to the default.
+    static let defaultAlias = "상대 기기"
+
     var id: String { Data(pairId).base64EncodedString() }
     var pairRole: PairRole { roleCode == 1 ? .a : .b }
     /// The peer's permanent role is the opposite of ours.

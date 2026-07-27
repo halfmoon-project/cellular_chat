@@ -70,4 +70,28 @@ final class PairStoreTests: XCTestCase {
         store.setPairingHandle(nil, pairId: pid)
         XCTAssertNil(store.record(forPairId: pid)?.pairingHandle)
     }
+
+    /// §11 deviceName adoption: fills in an unnamed pair, never overwrites a name
+    /// the user chose.
+    func testAdoptPeerDeviceNameOnlyReplacesTheDefaultAlias() throws {
+        let dir = tempDir()
+        let store = PairStore(directory: dir, secrets: MemorySecretStore())
+        let pid = [UInt8](repeating: 1, count: 16)
+        var unnamed = record(1)
+        unnamed.alias = PairRecord.defaultAlias
+        try store.commit(unnamed, pairRoot: [UInt8](repeating: 3, count: 32))
+
+        store.adoptPeerDeviceName("  ", pairId: pid)   // blank: no-op
+        XCTAssertEqual(store.record(forPairId: pid)?.alias, PairRecord.defaultAlias)
+
+        store.adoptPeerDeviceName("Galaxy S24", pairId: pid)
+        XCTAssertEqual(store.record(forPairId: pid)?.alias, "Galaxy S24")
+
+        // Already named (by the user or by an earlier adoption): never overwritten.
+        store.adoptPeerDeviceName("다른 이름", pairId: pid)
+        XCTAssertEqual(store.record(forPairId: pid)?.alias, "Galaxy S24")
+
+        let reopened = PairStore(directory: dir, secrets: MemorySecretStore())
+        XCTAssertEqual(reopened.record(forPairId: pid)?.alias, "Galaxy S24")
+    }
 }

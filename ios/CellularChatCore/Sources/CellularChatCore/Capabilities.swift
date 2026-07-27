@@ -22,6 +22,8 @@ public struct CapabilitySet: Equatable {
     public var niEdm: Bool
     public var wifiRtt: Bool
     public var backgroundRanging: Bool
+    /// Self-declared display name (§11 key 15): untrusted display text only.
+    public var deviceName: String
 
     public init(os: OSKind,
                 osVersion: String = "",
@@ -36,7 +38,8 @@ public struct CapabilitySet: Equatable {
                 appleInteropUwb: Bool = false,
                 niEdm: Bool = false,
                 wifiRtt: Bool = false,
-                backgroundRanging: Bool = false) {
+                backgroundRanging: Bool = false,
+                deviceName: String = "") {
         self.os = os
         self.osVersion = osVersion
         self.appVersion = appVersion
@@ -51,7 +54,11 @@ public struct CapabilitySet: Equatable {
         self.niEdm = niEdm
         self.wifiRtt = wifiRtt
         self.backgroundRanging = backgroundRanging
+        self.deviceName = String(deviceName.prefix(CapabilitySet.maxDeviceNameLength))
     }
+
+    /// §11: `deviceName` is capped at 40 characters on both send and receive.
+    public static let maxDeviceNameLength = 40
 
     public func encoded() -> CBOR {
         .map([
@@ -69,6 +76,7 @@ public struct CapabilitySet: Equatable {
             CBORPair(.uint(12), .bool(niEdm)),
             CBORPair(.uint(13), .bool(wifiRtt)),
             CBORPair(.uint(14), .bool(backgroundRanging)),
+            CBORPair(.uint(15), .text(deviceName)),
         ])
     }
 
@@ -97,7 +105,8 @@ public struct CapabilitySet: Equatable {
             appleInteropUwb: boolAt(11),
             niEdm: boolAt(12),
             wifiRtt: boolAt(13),
-            backgroundRanging: boolAt(14))
+            backgroundRanging: boolAt(14),
+            deviceName: textAt(15))
     }
 }
 

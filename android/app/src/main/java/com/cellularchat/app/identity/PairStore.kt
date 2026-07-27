@@ -1,5 +1,6 @@
 package com.cellularchat.app.identity
 
+import com.cellularchat.app.core.protocol.CapabilitySet
 import java.io.File
 
 /**
@@ -44,6 +45,25 @@ class PairStore(
     fun upsert(record: PairRecord) {
         ensureLoaded()
         records[record.pairIdHex()] = record
+        persist()
+    }
+
+    /**
+     * Adopt the peer's self-declared `deviceName` (PROTOCOL_V2.md §11) as this
+     * pair's alias, but only while the alias is still the untouched default — a
+     * name the user typed or edited always wins. A no-op when blank or unchanged.
+     */
+    fun adoptPeerDeviceName(pairId: ByteArray, name: String) {
+        ensureLoaded()
+        val trimmed = name.trim().take(CapabilitySet.MAX_DEVICE_NAME_LENGTH)
+        val key = pairId.joinToString("") { "%02x".format(it) }
+        val record = records[key] ?: return
+        if (trimmed.isEmpty() || record.alias != PairRecord.DEFAULT_ALIAS ||
+            trimmed == record.alias
+        ) {
+            return
+        }
+        records[key] = record.copy(alias = trimmed)
         persist()
     }
 

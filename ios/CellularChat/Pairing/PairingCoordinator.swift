@@ -31,7 +31,7 @@ final class PairingCoordinator: ObservableObject {
     private var role: PairRole = .a
     private var pairId: [UInt8] = []
     private var invitation: Invitation?
-    private var alias = "상대 기기"
+    private var alias = PairRecord.defaultAlias
     private var didCommit = false
 
     init(pairStore: PairStore) {

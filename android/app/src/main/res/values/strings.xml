@@ -1,6 +1,10 @@
 <resources>
     <string name="app_name">Cellular Find</string>
 
+    <!-- My device name -->
+    <string name="my_device_name">내 기기 이름</string>
+    <string name="my_device_name_note">상대가 아직 이름을 붙이지 않았다면 이 이름으로 표시됩니다.</string>
+
     <!-- People -->
     <string name="people_title">등록된 사람</string>
     <string name="people_empty">아직 등록된 사람이 없습니다. 아래에서 추가하세요.</string>

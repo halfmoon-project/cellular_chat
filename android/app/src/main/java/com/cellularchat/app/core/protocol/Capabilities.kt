@@ -22,6 +22,8 @@ data class CapabilitySet(
     val niEdm: Boolean = false,
     val wifiRtt: Boolean = false,
     val backgroundRanging: Boolean = false,
+    /** Self-declared display name (§11 key 15): untrusted display text only. */
+    val deviceName: String = "",
 ) {
     fun toCbor(): CborMap = CborMap(
         listOf(
@@ -39,12 +41,16 @@ data class CapabilitySet(
             CborInt(12) to CborBool(niEdm),
             CborInt(13) to CborBool(wifiRtt),
             CborInt(14) to CborBool(backgroundRanging),
+            CborInt(15) to CborText(deviceName.take(MAX_DEVICE_NAME_LENGTH)),
         ),
     )
 
     companion object {
         const val OS_ANDROID = 1
         const val OS_IOS = 2
+
+        /** §11: `deviceName` is capped at 40 characters on both send and receive. */
+        const val MAX_DEVICE_NAME_LENGTH = 40
 
         /** Unknown keys are ignored; missing keys take their default (false/empty). */
         fun fromCbor(map: CborMap): CapabilitySet {
@@ -67,6 +73,7 @@ data class CapabilitySet(
                 niEdm = bool(12L),
                 wifiRtt = bool(13L),
                 backgroundRanging = bool(14L),
+                deviceName = text(15L).take(MAX_DEVICE_NAME_LENGTH),
             )
         }
     }

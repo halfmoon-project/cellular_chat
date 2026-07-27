@@ -8,9 +8,17 @@ struct PeopleView: View {
     @State private var pairs: [PairRecord] = []
     @State private var showingPairing = false
     @State private var settingsPair: PairRecord?
+    @State private var myDeviceName = LocalDeviceName.current
 
     var body: some View {
         List {
+            Section("내 기기 이름") {
+                TextField("내 기기 이름", text: $myDeviceName)
+                    .onChange(of: myDeviceName) { _, name in LocalDeviceName.current = name }
+                Text("상대가 아직 이름을 붙이지 않았다면 이 이름으로 표시됩니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             if pairs.isEmpty {
                 ContentUnavailableView("등록된 상대가 없습니다",
                                        systemImage: "person.crop.circle.badge.plus",

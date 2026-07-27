@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.net.wifi.aware.WifiAwareManager
 import android.os.Build
 import com.cellularchat.app.core.protocol.CapabilitySet
+import com.cellularchat.app.identity.LocalDeviceName
 import com.cellularchat.app.ranging.RawUwbController
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
@@ -28,6 +29,11 @@ class AndroidCapabilityProvider(
     // production check reflects the raw-UWB RangingCapabilities, not FEATURE_UWB.
     private val appleInteropUwbSupported: () -> Boolean = { RawUwbController.interopProfileSupported(context) },
 ) : CapabilityProvider {
+    // Snapshot at construction (one provider per armed session) so a rename never
+    // drifts the CapabilitySet bound to a live session transcript (§11/§14).
+    private val deviceName = LocalDeviceName.get(context)
+
+
     override fun capabilities(): CapabilitySet {
         val pm = context.packageManager
         val hasAware = pm.hasSystemFeature(PackageManager.FEATURE_WIFI_AWARE) &&
@@ -53,6 +59,7 @@ class AndroidCapabilityProvider(
             niEdm = false,
             wifiRtt = false,
             backgroundRanging = false,
+            deviceName = deviceName,
         )
     }
 }

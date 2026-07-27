@@ -26,6 +26,7 @@ import com.cellularchat.app.core.protocol.SessionEnvelope
 import com.cellularchat.app.core.protocol.SessionMsgType
 import com.cellularchat.app.ui.UwbUnavailableReason
 import com.cellularchat.app.identity.PairRecord
+import com.cellularchat.app.identity.PairStore
 import com.cellularchat.app.ranging.AndroidOobController
 import com.cellularchat.app.ranging.Measurement
 import com.cellularchat.app.ranging.ProximityBand
@@ -42,6 +43,7 @@ import com.cellularchat.app.transport.TransportCandidateFactory
 import com.cellularchat.app.transport.TransportCoordinator
 import com.cellularchat.app.transport.TransportUpgradeManager
 import com.cellularchat.app.transport.aware.WifiAwareTransport
+import com.cellularchat.app.transport.ble.BleGattCentral
 import com.cellularchat.app.transport.nearby.NearbyConnectionsTransport
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
@@ -84,6 +86,9 @@ object FindController {
     private var bleControlRunner: SecureSessionRunner? = null
     private var activeTransportTag: String = "ble"
     private var record: PairRecord? = null
+    // The caller's store instance, not a fresh one: PairStore caches records in
+    // memory, so a second instance's write would be lost on the next UI save.
+    private var store: PairStore? = null
     private var capabilities: CapabilityProvider? = null
     private var deadlineMillis: Long = 0
 
@@ -116,6 +121,7 @@ object FindController {
     fun arm(
         context: Context,
         pair: PairRecord,
+        pairStore: PairStore,
         capabilityProvider: CapabilityProvider,
         durationMillis: Long,
     ) {
@@ -124,6 +130,7 @@ object FindController {
         val app = context.applicationContext
         this.appContext = app
         this.record = pair
+        this.store = pairStore
         this.capabilities = capabilityProvider
         this.deadlineMillis = System.currentTimeMillis() + durationMillis
 
@@ -231,6 +238,12 @@ object FindController {
         )
         activeRunner = newRunner
         activeTransportTag = won.tag
+        // Feed live BLE RSSI into the §12 proximity fallback. Gated on the active
+        // tag so a BLE link retained as the control fallback after an upgrade
+        // never feeds ranging (A.7), matching iOS SessionRunner.
+        (won.transport as? BleGattCentral)?.onRssi = { rssi, atMillis ->
+            handler.post { if (activeTransportTag == won.tag) ranging?.feedRssi(rssi, atMillis) }
+        }
         runCatching { newRunner.start() }
     }
 
@@ -245,6 +258,7 @@ object FindController {
             }.getOrNull() ?: return
             boundPeerCaps = peerCaps
             boundSid = peerSessionReady.sid
+            adoptPeerDeviceName(peerCaps.deviceName)
             val local = capabilities?.capabilities() ?: return
             coordinator?.onUwbUnavailableReason(UwbUnavailableReason.of(local, peerCaps))
             ranging?.select(local, peerCaps)
@@ -303,6 +317,17 @@ object FindController {
             }
         }
         ranging?.onSessionMessage(envelope.msgType, envelope.body)
+    }
+
+    /** Label a still-unnamed pair with the peer's §11 `deviceName`. The store is
+     * main-thread confined and this callback runs off-main, so it is posted. */
+    private fun adoptPeerDeviceName(name: String) {
+        val pair = record ?: return
+        val store = store ?: return
+        handler.post {
+            store.adoptPeerDeviceName(pair.pairId, name)
+            record = store.get(pair.pairId) ?: pair
+        }
     }
 
     private fun isCapabilityDrift(caps: CapabilitySet?): Boolean {
@@ -665,6 +690,7 @@ object FindController {
         coordinator = null
         recovery = null
         record = null
+        store = null
         appContext = null
         activeInitiatorStatic = null
     }

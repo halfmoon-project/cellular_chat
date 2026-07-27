@@ -62,6 +62,29 @@ class PairStoreTest {
         file.delete()
     }
 
+    /** §11 deviceName adoption: fills in an unnamed pair, never overwrites a name
+     * the user chose. */
+    @Test
+    fun adoptPeerDeviceNameOnlyReplacesTheDefaultAlias() {
+        val file = File.createTempFile("pairs", ".enc").also { it.delete() }
+        val pairId = ByteArray(16) { 1 }
+        val store = PairStore(file, PlainCipher())
+        store.upsert(record(1).copy(alias = PairRecord.DEFAULT_ALIAS))
+
+        store.adoptPeerDeviceName(pairId, "   ") // blank: no-op
+        assertEquals(PairRecord.DEFAULT_ALIAS, store.get(pairId)!!.alias)
+
+        store.adoptPeerDeviceName(pairId, "상현의 iPhone")
+        assertEquals("상현의 iPhone", store.get(pairId)!!.alias)
+
+        // Already named (by the user or by an earlier adoption): never overwritten.
+        store.adoptPeerDeviceName(pairId, "다른 이름")
+        assertEquals("상현의 iPhone", store.get(pairId)!!.alias)
+
+        assertEquals("상현의 iPhone", PairStore(file, PlainCipher()).get(pairId)!!.alias)
+        file.delete()
+    }
+
     @Test
     fun corruptBlobIsTreatedAsEmpty() {
         val file = File.createTempFile("pairs", ".enc")

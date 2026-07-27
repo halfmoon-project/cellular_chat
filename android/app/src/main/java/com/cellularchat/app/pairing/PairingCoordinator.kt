@@ -180,7 +180,7 @@ class PairingCoordinator(
             peerStaticPublic = peerStatic,
             pairRoot = staged.pairRoot.copyOf(),
             negotiatedVersion = staged.negotiatedVersion.toInt(),
-            alias = alias.ifBlank { "상대" },
+            alias = alias.ifBlank { PairRecord.DEFAULT_ALIAS },
             createdAt = clock(),
         )
         finished = true

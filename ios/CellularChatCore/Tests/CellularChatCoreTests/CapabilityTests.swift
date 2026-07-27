@@ -73,5 +73,18 @@ final class CapabilityTests: XCTestCase {
         XCTAssertTrue(set.uwbPresent)
         XCTAssertFalse(set.wifiAware)
         XCTAssertEqual(set.osVersion, "")
+        XCTAssertEqual(set.deviceName, "")   // §11 key 15 absent: empty, not a failure
+    }
+
+    func testDeviceNameRoundTripsAndIsCapped() throws {
+        let set = CapabilitySet(os: .ios, deviceName: "상현의 iPhone")
+        XCTAssertEqual(try CapabilitySet.decode(set.encoded()).deviceName, "상현의 iPhone")
+
+        // §11: 40 characters max, enforced on construction so a decoded oversize
+        // name from a peer is bounded too.
+        let long = String(repeating: "가", count: 100)
+        XCTAssertEqual(CapabilitySet(os: .ios, deviceName: long).deviceName.count, 40)
+        let oversize = CBOR.map([CBORPair(.uint(1), .uint(2)), CBORPair(.uint(15), .text(long))])
+        XCTAssertEqual(try CapabilitySet.decode(oversize).deviceName.count, 40)
     }
 }

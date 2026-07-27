@@ -11,6 +11,7 @@ struct PairingView: View {
     @State private var mode: Mode = .choose
     @State private var pasteText = ""
     @State private var alias = ""
+    @State private var myDeviceName = LocalDeviceName.current
     @State private var showSystemPairing = false
 
     enum Mode { case choose, invite, joinScan, joinPaste }
@@ -67,6 +68,12 @@ struct PairingView: View {
 
     private var chooser: some View {
         VStack(spacing: HM.space._4) {
+            // The name the peer sees for us (§11 deviceName) — the same stored
+            // value the people list edits, surfaced here because pairing is when
+            // naming is actually on the user's mind.
+            TextField("내 기기 이름", text: $myDeviceName)
+                .textFieldStyle(.roundedBorder)
+                .onChange(of: myDeviceName) { _, name in LocalDeviceName.current = name }
             TextField("상대 이름 (선택)", text: $alias)
                 .textFieldStyle(.roundedBorder)
             Button("QR 코드로 초대") { startInvite() }
@@ -180,6 +187,6 @@ struct PairingView: View {
     }
 
     private var aliasOrDefault: String {
-        alias.isEmpty ? "상대 기기" : alias
+        alias.isEmpty ? PairRecord.defaultAlias : alias
     }
 }

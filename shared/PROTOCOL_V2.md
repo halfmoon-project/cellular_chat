@@ -473,12 +473,21 @@ Canonical CBOR map:
 | 12 | niEdm | bool |
 | 13 | wifiRtt | bool |
 | 14 | backgroundRanging | bool |
+| 15 | deviceName | text |
 
 All values reflect runtime capability checks, never OS-version guesses.
 `appleInteropUwb` is true on iOS only for 26.1+, and on Android only when the
 raw-UWB stack reports support for the interop profile in `UWB_INTEROP.md`.
 Unknown keys are ignored (forward compatibility); missing keys default to
 `false`/empty.
+
+`deviceName` is a self-declared display name of at most 40 characters, carried
+only inside the authenticated session — never in an advertisement (§7). It is
+untrusted display text: a receiver adopts it as the pair's alias only while the
+alias is still the local default, so a user-chosen name always wins, and it
+never affects transport, ranging, or authentication. Because it is a §11 field
+it is bound to the session transcript (§14); each side snapshots its own name
+when a Find session is armed, so a rename takes effect from the next session.
 
 ## 12. Ranging selection
 
