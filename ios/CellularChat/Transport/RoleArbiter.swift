@@ -16,15 +16,30 @@ enum RoleArbiter {
     }
 
     /// Is the local device the initiator side of the Find session — BLE central,
-    /// Noise initiator, AND Wi-Fi Aware subscriber, all tied to the same pinned
-    /// keys so two same-platform peers pick opposite roles (§4/§9/§10)? A
-    /// cross-platform or not-yet-known peer keeps the default iOS-initiator
-    /// direction; a known same-platform (iOS) peer derives it from the keys.
-    static func localIsInitiatorSide(peerPlatform: OSKind?,
-                                     localStatic: [UInt8], peerStatic: [UInt8]) -> Bool {
-        guard peerPlatform == .ios else { return true }
-        return localIsBLECentral(localOS: .ios, peerOS: .ios,
-                                 localStatic: localStatic, peerStatic: peerStatic)
+    /// Noise initiator, AND Wi-Fi Aware subscriber, all from the same pinned keys
+    /// so the two sides always pick opposite roles (§4/§9/§10)?
+    ///
+    /// The peer's platform is deliberately NOT consulted. It is only ever learned
+    /// from a completed session, so the old "unknown peer ⇒ I am the initiator"
+    /// default made two iPhones both pick BLE central: neither advertised, and
+    /// Find sat in `searching` until the deadline — with no way out, since the
+    /// platform is only learned by connecting. The key tie-break needs no prior
+    /// knowledge and is exactly what Android computes today, so both platforms
+    /// agree on the first attempt.
+    ///
+    /// ponytail: this drops §9's cross-platform "iOS is the central" preference,
+    /// so ~half of iPhone↔Android pairs put the iPhone in the peripheral role,
+    /// where background advertising moves to the overflow area that an Android
+    /// central cannot see (foreground still works, and that half is fully
+    /// deadlocked today). Restore the preference by persisting the peer OS on
+    /// BOTH platforms — iOS already does via `PairStore.setPeerPlatform`; Android
+    /// must do the same from the session_ready CapabilitySet and pass
+    /// `peerIsIos` into `TransportCandidateFactory.candidates` — and only then
+    /// re-introduce the platform branch here. Flipping one side alone re-creates
+    /// the same both-central deadlock.
+    static func localIsInitiatorSide(localStatic: [UInt8], peerStatic: [UInt8]) -> Bool {
+        localIsBLECentral(localOS: .ios, peerOS: .ios,
+                          localStatic: localStatic, peerStatic: peerStatic)
     }
 
     /// Two authenticated connections for one pair: keep the one whose Noise

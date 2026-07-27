@@ -39,22 +39,15 @@ final class RoleArbiterTests: XCTestCase {
 
     // MARK: Find-session initiator side (§4/§9/§10)
 
-    func testUnknownOrCrossPlatformKeepsInitiatorDefault() {
-        let big = [UInt8](repeating: 0xFF, count: 32)
-        let small = [UInt8](repeating: 0x00, count: 32)
-        // A not-yet-known peer keeps the default iOS-initiator direction whatever the keys say.
-        XCTAssertTrue(RoleArbiter.localIsInitiatorSide(peerPlatform: nil, localStatic: big, peerStatic: small))
-        XCTAssertTrue(RoleArbiter.localIsInitiatorSide(peerPlatform: nil, localStatic: small, peerStatic: big))
-        // A cross-platform (Android) peer likewise keeps iOS as the initiator.
-        XCTAssertTrue(RoleArbiter.localIsInitiatorSide(peerPlatform: .android, localStatic: big, peerStatic: small))
-    }
-
-    func testSamePlatformInitiatorSideDerivedFromKeys() {
-        let small: [UInt8] = [0x00, 0x10]
-        let big: [UInt8] = [0x00, 0x20]
-        // iOS↔iOS: the bytewise-smaller key is the initiator side (central/subscriber/initiator).
-        XCTAssertTrue(RoleArbiter.localIsInitiatorSide(peerPlatform: .ios, localStatic: small, peerStatic: big))
-        XCTAssertFalse(RoleArbiter.localIsInitiatorSide(peerPlatform: .ios, localStatic: big, peerStatic: small))
+    /// The invariant the old "unknown peer ⇒ initiator" default violated: with no
+    /// knowledge beyond the pinned keys, exactly one of the two devices is the
+    /// initiator side. Two iPhones both answering `true` here is the both-central
+    /// deadlock that left Find stuck in `searching`.
+    func testInitiatorSideIsAlwaysOppositeFromKeysAlone() {
+        let a: [UInt8] = [0x01, 0x02]
+        let b: [UInt8] = [0x01, 0x03]
+        XCTAssertTrue(RoleArbiter.localIsInitiatorSide(localStatic: a, peerStatic: b))
+        XCTAssertFalse(RoleArbiter.localIsInitiatorSide(localStatic: b, peerStatic: a))
     }
 
     // MARK: Duplicate resolution from this device's view (§10)

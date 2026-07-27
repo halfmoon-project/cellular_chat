@@ -163,14 +163,14 @@ final class FindSessionCoordinator: ObservableObject {
                               unixSeconds: UInt64(Date().timeIntervalSince1970), role: pair.peerRole)
         }
 
-        // Same-platform pairs derive BLE central/peripheral, Noise initiator/
-        // responder, and Wi-Fi Aware subscriber/publisher deterministically from
-        // the pinned keys so the two iPhones pick opposite roles (§4/§9/§10). A
-        // cross-platform or not-yet-known peer keeps today's default iOS-initiator
-        // direction: BLE central / Wi-Fi Aware subscriber / Noise initiator.
+        // BLE central/peripheral, Noise initiator/responder, and Wi-Fi Aware
+        // subscriber/publisher all come from the pinned keys, so the two devices
+        // pick opposite roles on the very first attempt (§4/§9/§10) — no peer
+        // platform needs to be known, and nobody ends up scanning for a peer that
+        // is also only scanning.
         let localStatic = (try? DeviceKeyStore().staticPublicKey(pairId: pair.pairId)) ?? []
         let isInitiator = RoleArbiter.localIsInitiatorSide(
-            peerPlatform: pair.peerPlatform, localStatic: localStatic, peerStatic: pair.peerStaticPub)
+            localStatic: localStatic, peerStatic: pair.peerStaticPub)
 
         let ble = BLETransport(role: isInitiator ? .central : .peripheral,
                                localToken: localToken, acceptsPeerToken: acceptsPeer)
