@@ -22,16 +22,21 @@ import com.google.android.gms.common.GoogleApiAvailability
  * peripheral ownership and the rotating tokens (§7/§9) are derived from the pair
  * keys so both phones agree deterministically.
  *
- * peerIsIos is unknown before the authenticated capability exchange; until then
- * the same-platform tie-break is used (both Android phones agree). Cross-platform
- * role reversal is applied once the peer OS is known.
+ * The peer's OS is deliberately not consulted: it is only learned from a
+ * completed session, so a device that assumes a role on platform grounds can end
+ * up scanning for a peer that is also only scanning. The key tie-break needs no
+ * prior knowledge and is what iOS computes too (`RoleArbiter.localIsInitiatorSide`).
+ *
+ * ponytail: this gives up §9's "iOS is the central" cross-platform preference.
+ * Restoring it means persisting the peer OS on BOTH platforms and flipping both
+ * at once — a platform branch on one side alone puts both devices in the central
+ * role, which no retry escapes. See the note on `RoleArbiter.localIsInitiatorSide`.
  */
 object TransportCandidateFactory {
     fun candidates(
         context: Context,
         record: PairRecord,
         nowSeconds: Long = System.currentTimeMillis() / 1000,
-        peerIsIos: Boolean = false,
         handler: Handler = Handler(Looper.getMainLooper()),
     ): List<TransportCandidate> {
         val localStatic = record.localStaticPublic()
@@ -39,7 +44,7 @@ object TransportCandidateFactory {
             localStatic = localStatic,
             peerStatic = record.peerStaticPublic,
             localIsIos = false,
-            peerIsIos = peerIsIos,
+            peerIsIos = false,
         )
 
         val myDiscoveryKey = Derivations.discoveryKey(record.pairRoot, record.roleByte)
