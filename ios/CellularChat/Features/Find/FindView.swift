@@ -34,7 +34,7 @@ private struct FindContent: View {
     private var coachingText: String? {
         FindCoaching.cameraAssistText(method: ranging.selection?.method,
                                       state: find.state,
-                                      cameraAssistSupported: NISession.deviceCapabilities.supportsCameraAssistance)
+                                      cameraAssistSupported: NIAngle.cameraAssistUsable)
     }
 
     var body: some View {
@@ -48,6 +48,14 @@ private struct FindContent: View {
                 Text(PairFeatureStatus.derive(local: find.localCaps,
                                               peer: find.peerCaps,
                                               selection: ranging.selection).line)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+
+                // Where the ranging attempt actually stands (negotiating / waiting
+                // for the peer's offer / measuring / why UWB gave up). The Find
+                // state alone cannot say this, so it read as a silent stall.
+                Text(ranging.stateText)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

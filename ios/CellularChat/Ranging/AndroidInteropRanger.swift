@@ -14,6 +14,8 @@ final class AndroidInteropRanger: NSObject {
     var onSendShareable: ((Data) -> Void)?
     /// A fresh measurement, or nil to clear the last sample (§10/§12).
     var onMeasurement: ((Measurement?) -> Void)?
+    /// Why the NI session gave up, for the honest fallback status line.
+    var onFailure: ((String) -> Void)?
 
     private var session: NISession?
     private var configuration: NINearbyAccessoryConfiguration?
@@ -33,9 +35,11 @@ final class AndroidInteropRanger: NSObject {
         guard let config = try? NINearbyAccessoryConfiguration(data: data) else {
             onMeasurement?(nil); return
         }
-        if NISession.deviceCapabilities.supportsCameraAssistance {
+        if NIAngle.cameraAssistUsable {
             config.isCameraAssistanceEnabled = true
         }
+        // Same as ApplePeerRanger: a retry must not leave the old session alive.
+        self.session?.invalidate()
         let session = NISession()
         session.delegate = self
         session.delegateQueue = .main
@@ -66,7 +70,7 @@ extension AndroidInteropRanger: NISessionDelegate {
     nonisolated func session(_ session: NISession, didUpdate nearbyObjects: [NINearbyObject]) {
         guard let object = nearbyObjects.first else { return }
         let distance = object.distance.map { Double($0) }
-        let angle = object.horizontalAngle.map { Double($0) }
+        let angle = NIAngle.horizontalRadians(object)
         Task { @MainActor [weak self] in
             guard let self, session === self.session else { return }
             self.onMeasurement?(Measurement(timestamp: Date(), method: .uwbAppleInterop,
@@ -88,6 +92,7 @@ extension AndroidInteropRanger: NISessionDelegate {
         Task { @MainActor [weak self] in
             guard let self, session === self.session else { return }
             self.session = nil
+            self.onFailure?(NIAngle.failureReason(error))
             self.onMeasurement?(nil)
         }
     }

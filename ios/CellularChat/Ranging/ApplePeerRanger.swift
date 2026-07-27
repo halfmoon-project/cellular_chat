@@ -12,6 +12,8 @@ final class ApplePeerRanger: NSObject {
     var onSendToken: ((Data) -> Void)?
     /// A fresh measurement, or nil to signal the last sample is cleared (§10/§12).
     var onMeasurement: ((Measurement?) -> Void)?
+    /// Why the NI session gave up, for the honest fallback status line.
+    var onFailure: ((String) -> Void)?
 
     private var session: NISession?
     private var configuration: NINearbyPeerConfiguration?
@@ -24,6 +26,9 @@ final class ApplePeerRanger: NSObject {
     func start(enableEDM: Bool) {
         guard Self.isSupported else { onMeasurement?(nil); return }
         self.enableEDM = enableEDM
+        // A UWB retry calls start() again: drop the previous session first or the
+        // abandoned ones accumulate until NI answers activeSessionsLimitExceeded.
+        self.session?.invalidate()
         let session = NISession()
         session.delegate = self
         session.delegateQueue = .main
@@ -42,7 +47,7 @@ final class ApplePeerRanger: NSObject {
 
         let config = NINearbyPeerConfiguration(peerToken: token)
         let caps = NISession.deviceCapabilities
-        if caps.supportsCameraAssistance {
+        if NIAngle.cameraAssistUsable {
             config.isCameraAssistanceEnabled = true
         }
         // EDM only if selected AND both radios report support (§12).
@@ -68,7 +73,7 @@ extension ApplePeerRanger: NISessionDelegate {
     nonisolated func session(_ session: NISession, didUpdate nearbyObjects: [NINearbyObject]) {
         guard let object = nearbyObjects.first else { return }
         let distance = object.distance.map { Double($0) }
-        let angle = object.horizontalAngle.map { Double($0) }
+        let angle = NIAngle.horizontalRadians(object)
         Task { @MainActor [weak self] in
             guard let self, session === self.session else { return }
             // A fresh angle enables direction UI; otherwise distance-only (§12).
@@ -105,6 +110,7 @@ extension ApplePeerRanger: NISessionDelegate {
         Task { @MainActor [weak self] in
             guard let self, session === self.session else { return }
             self.session = nil
+            self.onFailure?(NIAngle.failureReason(error))
             self.onMeasurement?(nil)
         }
     }

@@ -69,11 +69,17 @@ final class RangingCoordinator: ObservableObject {
     private var peerCaps: CapabilitySet?
     private var offeredMethod: RangingMethod?
 
+    /// Last NI invalidation reason, shown in the fallback line so a denied
+    /// permission is distinguishable from a device that simply has no UWB.
+    private var lastUWBFailure: String?
+
     init() {
         peerRanger.onSendToken = { [weak self] data in self?.sendRangingData(.niToken, data) }
         peerRanger.onMeasurement = { [weak self] m in self?.handleUWB(measurement: m) }
+        peerRanger.onFailure = { [weak self] reason in self?.lastUWBFailure = reason }
         interopRanger.onSendShareable = { [weak self] data in self?.sendRangingData(.appleShareable, data) }
         interopRanger.onMeasurement = { [weak self] m in self?.handleUWB(measurement: m) }
+        interopRanger.onFailure = { [weak self] reason in self?.lastUWBFailure = reason }
     }
 
     private func nextAttemptId() -> UInt64 { attemptCounter += 1; return attemptCounter }
@@ -99,6 +105,7 @@ final class RangingCoordinator: ObservableObject {
         currentAttemptId = nil
         startedAttempt = nil
         offeredMethod = nil
+        lastUWBFailure = nil
         // The ni_peer ranging controller (offerer) is the Noise initiator; every
         // other method is peer-driven (Android sends apple_config directly, never
         // an offer) or a local fallback, so iOS offers only for ni_peer.
@@ -229,6 +236,9 @@ final class RangingCoordinator: ObservableObject {
     private func beginMethod(attemptId: UInt64) {
         guard active, startedAttempt != attemptId else { return }
         startedAttempt = attemptId
+        // Distinct from the negotiation texts: past this point the offer/accept
+        // exchange is done and silence means NI itself is producing nothing.
+        stateText = "UWB 세션 시작 · 상대 응답 대기"
         if selection?.method == .niPeer { peerRanger.start(enableEDM: selection?.edm ?? false) }
     }
 
@@ -283,6 +293,7 @@ final class RangingCoordinator: ObservableObject {
         guard active else { return }
         if let m {
             backoff.reset()
+            lastUWBFailure = nil
             measurement = m
             stateText = m.horizontalAngleRadians != nil ? "방향 측정 중"
                 : (m.distanceMeters != nil ? "거리 측정 중" : "신호 탐색 중")
@@ -299,7 +310,8 @@ final class RangingCoordinator: ObservableObject {
                                   distanceMeters: nil, horizontalAngleRadians: nil,
                                   proximity: rssiFilter.band,
                                   trend: rssiFilter.trend, trendConfidence: rssiFilter.trendConfidence)
-        stateText = "UWB 신호 없음 · 근접도만 표시"
+        stateText = lastUWBFailure.map { "UWB 신호 없음(\($0)) · 근접도만 표시" }
+            ?? "UWB 신호 없음 · 근접도만 표시"
     }
 
     private func scheduleUWBRetry() {
