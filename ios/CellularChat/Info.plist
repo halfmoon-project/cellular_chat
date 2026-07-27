@@ -34,12 +34,12 @@
     <string>연결된 상대 기기까지의 실제 거리와 방향을 표시하기 위해 UWB를 사용합니다.</string>
     <key>WiFiAwareServices</key>
     <dict>
-        <key>cellfind</key>
+        <key>_cellfind._udp</key>
         <dict>
             <key>Publishable</key>
-            <true/>
+            <dict/>
             <key>Subscribable</key>
-            <true/>
+            <dict/>
         </dict>
     </dict>
     <key>UIBackgroundModes</key>

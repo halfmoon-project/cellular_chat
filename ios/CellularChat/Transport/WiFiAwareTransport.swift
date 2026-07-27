@@ -18,7 +18,10 @@ import CellularChatCore
 final class WiFiAwareTransport: PeerTransport {
     enum WARole { case subscriber, publisher }
 
-    static let serviceName = "cellfind"
+    // RFC6763 form: the WiFiAware framework traps on any other spelling, both
+    // here and on the Info.plist key. Android publishes the bare NAN name
+    // "cellfind"; cross-platform Aware discovery is still an unvalidated gate.
+    static let serviceName = "_cellfind._udp"
 
     let kind: TransportKind = .wifiAware
     let role: WARole
