@@ -23,9 +23,25 @@ final class FindLiveActivityController: ObservableObject {
     static let defaultDuration: TimeInterval = 30 * 60   // 30 minutes
     static let maxDuration: TimeInterval = 2 * 60 * 60   // 2 hours
 
+    init() {
+        // A new process cannot adopt the previous one's session, so an Activity left
+        // behind by a crash/kill is orphaned: it would keep counting down with a
+        // status nothing can ever update. End it instead.
+        // ponytail: best-effort — `activities` is hydrated from the ActivityKit
+        // daemon asynchronously, so a sweep one hop after launch catches the normal
+        // case; observing `activityUpdates` instead would also see the activity this
+        // controller starts itself. Never touches the live one.
+        Task { [weak self] in
+            for orphan in Activity<FindActivityAttributes>.activities
+            where orphan.id != self?.activity?.id {
+                await orphan.end(nil, dismissalPolicy: .immediate)
+            }
+        }
+    }
+
     /// Arm Find with a bounded deadline (default 30 min, max 2 h) and start the
     /// Live Activity for `alias` when Live Activities are enabled.
-    func arm(duration: TimeInterval = defaultDuration, alias: String = "") {
+    func arm(duration: TimeInterval = defaultDuration, alias: String = "", statusText: String) {
         let clamped = min(max(duration, 60), Self.maxDuration)
         let deadline = Date().addingTimeInterval(clamped)
         self.deadline = deadline
@@ -34,7 +50,8 @@ final class FindLiveActivityController: ObservableObject {
         timer = Timer.scheduledTimer(withTimeInterval: clamped, repeats: false) { [weak self] _ in
             Task { @MainActor in self?.expire() }
         }
-        startActivity(alias: alias, deadline: deadline)
+        endActivity(finalText: nil)   // never stack two activities for one session
+        startActivity(alias: alias, deadline: deadline, statusText: statusText)
     }
 
     /// Push a fresh Live Activity content state (status + proximity band). A no-op
@@ -46,17 +63,23 @@ final class FindLiveActivityController: ObservableObject {
         Task { await activity.update(ActivityContent(state: state, staleDate: deadline)) }
     }
 
-    func stop() {
+    /// End the session. `finalText` is shown on the Live Activity for a minute so an
+    /// expiry or failure is not just a card silently vanishing; pass nil (a user stop,
+    /// which the user already knows about) to dismiss immediately.
+    func stop(finalText: String? = nil) {
         timer?.invalidate()
         timer = nil
         deadline = nil
         isActive = false
-        endActivity()
+        endActivity(finalText: finalText)
     }
 
     private func expire() {
-        stop()
-        onExpired?()
+        timer?.invalidate()
+        timer = nil
+        // The coordinator drives teardown (and the closing Live Activity text)
+        // through the reducer's DEADLINE event; with no handler, end it here.
+        if let onExpired { onExpired() } else { stop() }
     }
 
     var remaining: TimeInterval? {
@@ -66,17 +89,23 @@ final class FindLiveActivityController: ObservableObject {
 
     // MARK: ActivityKit
 
-    private func startActivity(alias: String, deadline: Date) {
+    private func startActivity(alias: String, deadline: Date, statusText: String) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         let attributes = FindActivityAttributes(peerAlias: alias, deadline: deadline)
-        let state = FindActivityAttributes.ContentState(statusText: "찾는 중", proximityLabel: nil)
+        let state = FindActivityAttributes.ContentState(statusText: statusText, proximityLabel: nil)
         activity = try? Activity.request(attributes: attributes,
                                          content: ActivityContent(state: state, staleDate: deadline))
     }
 
-    private func endActivity() {
+    private func endActivity(finalText: String?) {
         guard let activity else { return }
         self.activity = nil
-        Task { await activity.end(nil, dismissalPolicy: .immediate) }
+        let final = finalText.map {
+            ActivityContent(state: FindActivityAttributes.ContentState(statusText: $0, proximityLabel: nil),
+                            staleDate: nil)
+        }
+        let policy: ActivityUIDismissalPolicy =
+            final == nil ? .immediate : .after(Date().addingTimeInterval(60))
+        Task { await activity.end(final, dismissalPolicy: policy) }
     }
 }

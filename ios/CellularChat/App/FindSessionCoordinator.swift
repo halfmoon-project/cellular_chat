@@ -27,7 +27,12 @@ final class FindSessionCoordinator: ObservableObject {
     /// VoiceOver announcement sink; overridable in tests. Defaults to posting a
     /// UIAccessibility announcement so state/band changes are read aloud.
     var announce: (String) -> Void = { UIAccessibility.post(notification: .announcement, argument: $0) }
+    /// Dedup latch for VoiceOver only: what was last spoken aloud.
     private var lastAnnouncedBand: ProximityBand?
+    /// The band of the CURRENT measurement, or nil when there is none (UWB samples
+    /// carry no band). This — never the announcement latch — is what the Live
+    /// Activity shows, so a band cannot outlive the measurement that produced it.
+    private var currentBand: ProximityBand?
 
     private var runner: SessionRunner?
     private var activeTransport: PeerTransport?
@@ -127,13 +132,20 @@ final class FindSessionCoordinator: ObservableObject {
         // A revoked pair never arms a session (PROTOCOL_V2.md §8); surface the
         // §13 revoked reason instead of failing silently.
         guard !pair.revoked else { reason = .revoked; return }
+        // The reducer's terminal states are absorbing by protocol (§10,
+        // shared/vectors/state_transitions.json), so a new session is a new
+        // lifecycle: stop whatever is still live (which ends its Live Activity)
+        // and reset to idle rather than inventing a terminal→ARM transition.
+        if state != .idle { stop() }
+        state = .idle
+        reason = nil
         selectedPair = pair
         activePair = pair
         deadline = Date().addingTimeInterval(duration)
         retryBackoff.reset()
         ranging.stop()
         apply(.arm, reason: nil)
-        background.arm(duration: duration, alias: pair.alias)
+        background.arm(duration: duration, alias: pair.alias, statusText: statusText)
         apply(.armed, reason: nil)
         beginSearch(pair: pair)
     }
@@ -281,17 +293,23 @@ final class FindSessionCoordinator: ObservableObject {
             // Stale-clear/signal loss: pulses and band announcements must not
             // outlive a real measurement.
             haptics.stop()
+            currentBand = nil
             lastAnnouncedBand = nil
             apply(.signalLost, reason: .transportLost)
             return
         }
         haptics.update(for: m)
+        // Mirror the band this measurement actually carries — including its absence,
+        // which is the normal case once UWB takes over from the RSSI fallback.
+        if currentBand != m.proximity {
+            currentBand = m.proximity
+            pushActivity()
+        }
         // Announce a proximity band the first time it changes (a significant,
         // non-spammy event); precise distance changes are not announced.
         if let band = m.proximity, band != lastAnnouncedBand {
             lastAnnouncedBand = band
             announce(band.label)
-            background.update(statusText: statusText, proximityLabel: band.label)
         }
         if m.horizontalAngleRadians != nil {
             apply(.sampleDirection, reason: nil)
@@ -648,9 +666,19 @@ final class FindSessionCoordinator: ObservableObject {
         transports.teardown(reason: reason)
         activeTransport = nil
         ranging.stop()
-        background.stop()
+        // The Live Activity and the armed deadline belong to the SESSION, not to a
+        // link, so they are NOT stopped here: only a terminal state ends them
+        // (`apply`). Tearing down the losing side of a duplicate reconciliation
+        // must leave both running.
         haptics.stop()
+        currentBand = nil
         lastAnnouncedBand = nil
+    }
+
+    /// Mirror the session onto the Live Activity. The band comes from the live
+    /// measurement, never from the announcement latch.
+    private func pushActivity() {
+        background.update(statusText: statusText, proximityLabel: currentBand?.label)
     }
 
     /// Apply an event through the shared reducer; ignore invalid pairs (§10).
@@ -659,13 +687,19 @@ final class FindSessionCoordinator: ObservableObject {
         let previous = state
         if let reason { self.reason = reason }
         state = next
+        // Entering signalLost drops the last measurement, so neither the in-app UI
+        // nor the Live Activity can keep showing a band from the dead link.
+        if next == .signalLost { currentBand = nil; lastAnnouncedBand = nil }
+        let isTerminal = (next == .stopped || next == .expired || next == .failed)
         if next != previous {
             announce(statusText)   // read each state change aloud
-            background.update(statusText: statusText, proximityLabel: lastAnnouncedBand?.label)
+            if !isTerminal { pushActivity() }
         }
-        if next == .signalLost { /* core clears; UI never shows stale */ }
-        if next == .stopped || next == .expired || next == .failed {
+        if isTerminal {
             teardown(reason: reason ?? .normal)
+            // A user stop needs no lock-screen epilogue; an expiry or failure does,
+            // otherwise the card just disappears without saying why.
+            background.stop(finalText: next == .stopped ? nil : statusText)
         }
     }
 }

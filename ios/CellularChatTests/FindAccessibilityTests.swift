@@ -39,4 +39,32 @@ final class FindAccessibilityTests: XCTestCase {
         XCTAssertTrue(announced.contains(ReasonCode.radioUnavailable.userText),
                       "failure should be announced: \(announced)")
     }
+
+    /// A finished session must be re-armable. The reducer's terminal states are
+    /// absorbing (§10), so `arm` resets to idle first; without that reset the second
+    /// arm leaves the state machine parked in the old terminal state while the radios
+    /// and the Live Activity start over — the UI and the lock screen then disagree.
+    @MainActor
+    func testReArmAfterATerminalStateRunsTheFullPathAgain() {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("rearm-\(UUID().uuidString)")
+        let store = PairStore(directory: dir, secrets: MemorySecretStore())   // no committed root
+        let coordinator = FindSessionCoordinator(pairStore: store)
+
+        var announced: [String] = []
+        coordinator.announce = { announced.append($0) }
+
+        let pair = PairRecord(pairId: (0..<16).map { UInt8($0) }, roleCode: 1,
+                              peerStaticPub: [UInt8](repeating: 2, count: 32),
+                              negotiatedVersion: 2, alias: "친구", createdAt: 1, revoked: false)
+        coordinator.arm(pair: pair)
+        XCTAssertEqual(coordinator.state, .failed)
+
+        announced.removeAll()
+        coordinator.arm(pair: pair)
+
+        XCTAssertEqual(coordinator.state, .failed, "the second arm must run its own lifecycle")
+        XCTAssertTrue(announced.contains { $0.contains("상대가 없다는 뜻이 아닙니다") },
+                      "the second arm should reach searching again: \(announced)")
+    }
 }
