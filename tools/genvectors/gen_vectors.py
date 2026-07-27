@@ -424,7 +424,12 @@ def gen_duplicate_ops():
             "Android is always the OOB controller and treats them as no-ops. "
             "'role' is the local RangingCoordinator role; an 'offerer' emits "
             "ranging_offer(attemptId=1) on start, before any op is fed. "
-            "'expectOutbound' is the exact message stream the coordinator emits; "
+            "'expectOutbound' is the exact stream of those four keyed ops the "
+            "coordinator emits; a consumer filters everything else out first. "
+            "Platform data-plane messages (ni_token, apple_shareable, oob_data) "
+            "are attempt-scoped but not modelled here: whether they appear at "
+            "all depends on the local UWB radio, so pinning them would make a "
+            "shared vector host-dependent. "
             "'sessionsStarted'/'sessionsStopped' are the deduped session effects."
         ),
         "rangingMethods": {"niPeer": 3},

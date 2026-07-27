@@ -10,11 +10,13 @@ import CellularChatCore
 /// enforced: a duplicate ranging_start is a single session effect, a duplicate
 /// ranging_stop is a no-op, and an accept for a stale/older attempt is ignored.
 ///
-/// Each fixture case pins the exact outbound message stream the coordinator must
-/// emit (`expectOutbound`), generated and self-validated by the same reference
-/// model in `tools/genvectors`. The coordinator drives no `NISession` here — the
-/// negotiation precedes any platform ranging start, and UWB is unavailable on the
-/// host anyway — so only the message layer is exercised.
+/// Each fixture case pins the exact stream of those keyed ops the coordinator
+/// must emit (`expectOutbound`), generated and self-validated by the same
+/// reference model in `tools/genvectors`. Only the message layer is exercised:
+/// the negotiation precedes any platform ranging start. The attached
+/// `ApplePeerRanger` may still emit its `ni_token` for the attempt depending on
+/// what the host radio reports, which is exactly why the fixture models the
+/// keyed ops alone and `opName` filters the rest out.
 @MainActor
 final class DuplicateOpsTests: XCTestCase {
 
@@ -31,14 +33,19 @@ final class DuplicateOpsTests: XCTestCase {
         }
     }
 
-    private func opName(_ type: SessionMsgType) -> String {
+    /// The five keyed negotiation ops the fixture models. Anything else the
+    /// coordinator emits for an attempt — `ni_token`, `apple_shareable`,
+    /// `oob_data` — is a platform data-plane message whose presence depends on
+    /// the local UWB radio, so the shared vector deliberately does not pin it
+    /// (see the fixture `note`). Filter, do not fail.
+    private func opName(_ type: SessionMsgType) -> String? {
         switch type {
         case .rangingOffer: return "ranging_offer"
         case .rangingAccept: return "ranging_accept"
         case .rangingStart: return "ranging_start"
         case .rangingStop: return "ranging_stop"
         case .rangingError: return "ranging_error"
-        default: return "other(\(type.rawValue))"
+        default: return nil
         }
     }
 
@@ -80,7 +87,7 @@ final class DuplicateOpsTests: XCTestCase {
                                                  body: body(for: op))
             }
 
-            let actual = sent.map { (opName($0.0), $0.1.value(forKey: 1)?.asUInt) }
+            let actual = sent.compactMap { m in opName(m.0).map { ($0, m.1.value(forKey: 1)?.asUInt) } }
             XCTAssertEqual(actual.count, expected.count,
                            "\(name): outbound count \(actual) vs \(expected)")
             for (a, e) in zip(actual, expected) {
