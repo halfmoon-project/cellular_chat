@@ -29,7 +29,9 @@ final class BLETransport: NSObject, PeerTransport {
     var onRecord: (([UInt8]) -> Void)?
     var onClosed: ((ReasonCode) -> Void)?
     /// Live BLE RSSI samples for the §12 proximity fallback (central role only).
-    var onRSSI: ((Double) -> Void)?
+    /// The timestamp is stamped in the radio callback, not by the consumer: the
+    /// trend regression is over seconds, and a queue hop would compress the arc.
+    var onRSSI: ((Double, TimeInterval) -> Void)?
 
     private let queue = DispatchQueue(label: "com.cellularchat.ble")
     private var central: CBCentralManager?
@@ -293,7 +295,7 @@ extension BLETransport: CBPeripheralDelegate {
 
     func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
         guard error == nil else { return }
-        onRSSI?(RSSI.doubleValue)
+        onRSSI?(RSSI.doubleValue, Date().timeIntervalSince1970)
     }
 }
 

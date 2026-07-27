@@ -276,9 +276,9 @@ final class RangingCoordinator: ObservableObject {
     }
 
     /// Feed a raw RSSI reading from the BLE link for the proximity fallback (§12).
-    func feedRSSI(_ rssi: Double) {
+    func feedRSSI(_ rssi: Double, at timestamp: TimeInterval = Date().timeIntervalSince1970) {
         guard active else { return }
-        let band = rssiFilter.add(rssi: rssi)
+        let band = rssiFilter.add(rssi: rssi, at: timestamp)
         // Only surface RSSI proximity when UWB is not currently providing a sample.
         if selection?.method == .bleRssi || measurement == nil || measurement?.proximity != nil {
             measurement = Measurement(timestamp: Date(), method: .bleRssi,

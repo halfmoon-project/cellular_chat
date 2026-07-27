@@ -89,8 +89,8 @@ final class SessionRunner {
         // Feed live BLE RSSI into the §12 proximity fallback (finding: bleRssi),
         // but only while this runner owns ranging (§10 exactly-one-runner rule).
         if let ble = transport as? BLETransport {
-            ble.onRSSI = { [weak self] rssi in
-                Task { @MainActor in if self?.rangingActive == true { self?.ranging.feedRSSI(rssi) } }
+            ble.onRSSI = { [weak self] rssi, at in
+                Task { @MainActor in if self?.rangingActive == true { self?.ranging.feedRSSI(rssi, at: at) } }
             }
         }
         if role == .initiator { emitHandshake() }   // IKpsk2 message 1

@@ -219,10 +219,11 @@ class RangingCoordinator(
         return CapabilityTranscript.methodSupported(local, peer, candidate)
     }
 
-    /** Feeds one raw BLE RSSI reading (dBm); drives the UI only on the band path. */
-    fun feedRssi(rssiDb: Int) {
+    /** Feeds one raw BLE RSSI reading (dBm); drives the UI only on the band path.
+     * [atMillis] is stamped in the radio callback (see BleGattCentral). */
+    fun feedRssi(rssiDb: Int, atMillis: Long = System.currentTimeMillis()) {
         if (stopped) return
-        val band = filter.update(rssiDb)
+        val band = filter.update(rssiDb, atMillis)
         // RSSI is non-UWB, so it is foreground-only (§8). The advisory trend
         // (Feature C) accompanies every RSSI-derived proximity value.
         if (proximityActive && foreground) output.onProximity(band, filter.trend, filter.trendConfidence)

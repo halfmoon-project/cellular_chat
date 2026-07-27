@@ -20,9 +20,8 @@ class RssiProximityFilter(
     private val window = ArrayDeque<Int>()
     private var band: ProximityBand = ProximityBand.UNKNOWN
 
-    // Feature C: a separate FIFO of recent trend medians (Double dBm) feeds the
-    // approaching/receding regression. It is IN ADDITION to the raw band window.
-    private val medianHistory = ArrayDeque<Double>()
+    /** Recent (timestamp seconds, window median dBm) pairs driving the trend. */
+    private val medianHistory = ArrayDeque<Pair<Double, Double>>()
 
     var trend: RssiTrend = RssiTrend.STEADY
         private set
@@ -32,33 +31,48 @@ class RssiProximityFilter(
     fun current(): ProximityBand = band
 
     fun reset() {
-        window.clear()
-        medianHistory.clear()
+        clearHistory()
         band = ProximityBand.UNKNOWN
-        trend = RssiTrend.STEADY
-        trendConfidence = TrendConfidence.LOW
     }
 
-    /** Feeds one raw RSSI reading (dBm) and returns the stabilized band. */
-    fun update(rssiDb: Int): ProximityBand {
+    /**
+     * Feeds one raw RSSI reading (dBm) and returns the stabilized band.
+     * [atMillis] is wall-clock, stamped as close to the radio read as possible:
+     * the trend regresses over seconds, so a queue hop compresses its arc.
+     */
+    fun update(rssiDb: Int, atMillis: Long = System.currentTimeMillis()): ProximityBand {
+        val timestamp = atMillis / 1000.0
+        medianHistory.lastOrNull()?.let { (last, _) ->
+            val elapsed = timestamp - last
+            if (elapsed < 0 || elapsed > GAP_RESET_SECONDS) clearHistory()
+        }
         window.addLast(rssiDb)
         while (window.size > windowSize) window.removeFirst()
         val median = medianOf(window)
         band = nextBand(band, median)
-        updateTrend()
+        updateTrend(timestamp)
         return band
     }
 
-    // --- Feature C: approaching/receding trend with confidence ---
+    /** Drops the sampling history but keeps the band: a stale window must not
+     * feed either the median or the regression after a gap. */
+    private fun clearHistory() {
+        window.clear()
+        medianHistory.clear()
+        trend = RssiTrend.STEADY
+        trendConfidence = TrendConfidence.LOW
+    }
+
+    // --- approaching/receding trend with confidence ---
 
     /**
-     * Appends the current window's averaged-middle median (as a Double) to
-     * [medianHistory] and re-runs the least-squares regression (C.3–C.6). This
-     * median definition is used ONLY for the trend and is independent of the
-     * band's own (upper-middle) median, so the trend is cross-platform-identical.
+     * Appends the current window's averaged-middle median to [medianHistory] and
+     * re-runs the least-squares regression. This median definition is used ONLY
+     * for the trend and is independent of the band's own (upper-middle) median,
+     * so the trend is cross-platform-identical.
      */
-    private fun updateTrend() {
-        medianHistory.addLast(trendMedianOf(window))
+    private fun updateTrend(timestamp: Double) {
+        medianHistory.addLast(timestamp to trendMedianOf(window))
         while (medianHistory.size > MEDIAN_HISTORY) medianHistory.removeFirst()
         recomputeTrend()
     }
@@ -74,36 +88,65 @@ class RssiProximityFilter(
     }
 
     private fun recomputeTrend() {
-        val y = medianHistory.toList()
-        val k = y.size
+        val k = medianHistory.size
         if (k < MIN_SAMPLES_FOR_TREND) {
             trend = RssiTrend.STEADY
             trendConfidence = TrendConfidence.LOW
             return
         }
-        val meanX = (k - 1) / 2.0
-        val meanY = y.sum() / k
-        var sxx = 0.0
-        var sxy = 0.0
-        for (i in 0 until k) {
-            val dx = i - meanX
-            sxx += dx * dx
-            sxy += dx * (y[i] - meanY)
+        val points = medianHistory.toList()
+        val span = points.last().first - points.first().first
+        if (span < MIN_SPAN_SECONDS) {
+            trend = RssiTrend.STEADY
+            trendConfidence = TrendConfidence.LOW
+            return
         }
-        val slope = sxy / sxx
-        trend = when {
-            slope >= APPROACHING_SLOPE -> RssiTrend.APPROACHING
-            slope <= RECEDING_SLOPE -> RssiTrend.RECEDING
-            else -> RssiTrend.STEADY
+        val meanT = points.sumOf { it.first } / k
+        val meanY = points.sumOf { it.second } / k
+        var stt = 0.0
+        var sty = 0.0
+        for ((t, y) in points) {
+            val dt = t - meanT
+            stt += dt * dt
+            sty += dt * (y - meanY)
         }
+        val slope = sty / stt
+
+        // Hysteresis: hold at the exit threshold, reverse only at the entry one.
+        trend = when (trend) {
+            RssiTrend.APPROACHING -> when {
+                slope >= EXIT_SLOPE_DB_PER_SEC -> RssiTrend.APPROACHING
+                slope <= -ENTER_SLOPE_DB_PER_SEC -> RssiTrend.RECEDING
+                else -> RssiTrend.STEADY
+            }
+            RssiTrend.RECEDING -> when {
+                slope <= -EXIT_SLOPE_DB_PER_SEC -> RssiTrend.RECEDING
+                slope >= ENTER_SLOPE_DB_PER_SEC -> RssiTrend.APPROACHING
+                else -> RssiTrend.STEADY
+            }
+            RssiTrend.STEADY -> when {
+                slope >= ENTER_SLOPE_DB_PER_SEC -> RssiTrend.APPROACHING
+                slope <= -ENTER_SLOPE_DB_PER_SEC -> RssiTrend.RECEDING
+                else -> RssiTrend.STEADY
+            }
+        }
+
         var residualSq = 0.0
-        for (i in 0 until k) {
-            val fit = meanY + slope * (i - meanX)
-            val r = y[i] - fit
+        for ((t, y) in points) {
+            val r = y - (meanY + slope * (t - meanT))
             residualSq += r * r
         }
-        val residualVariance = residualSq / k
-        trendConfidence = if (k >= HIGH_CONF_MIN_SAMPLES && residualVariance <= RESIDUAL_VARIANCE_CAP) {
+        val residualVariance = residualSq / maxOf(k - 2, 1)
+        val cap = if (trendConfidence == TrendConfidence.HIGH) {
+            RESIDUAL_VARIANCE_EXIT
+        } else {
+            RESIDUAL_VARIANCE_ENTER
+        }
+        trendConfidence = if (
+            k >= HIGH_CONF_MIN_SAMPLES &&
+            span >= HIGH_CONF_MIN_SPAN_SECONDS &&
+            residualVariance <= cap
+        ) {
             TrendConfidence.HIGH
         } else {
             TrendConfidence.LOW
@@ -147,12 +190,41 @@ class RssiProximityFilter(
         if (median >= veryNearThresholdDb) ProximityBand.VERY_NEAR else ProximityBand.NEAR
 
     companion object {
-        // Feature C fixed parameters — identical on iOS and Android.
+        // Trend parameters, pinned in code on both platforms so a given
+        // (RSSI, timestamp) sequence yields identical enums. No external spec
+        // defines them — shared/PROTOCOL_V2.md §12 covers only the bands.
         const val MEDIAN_HISTORY = 10
         const val MIN_SAMPLES_FOR_TREND = 4
         const val HIGH_CONF_MIN_SAMPLES = 6
-        const val APPROACHING_SLOPE = 0.5
-        const val RECEDING_SLOPE = -0.5
-        const val RESIDUAL_VARIANCE_CAP = 16.0
+
+        /**
+         * Regression is over SECONDS, so the thresholds are a physical speed,
+         * not a per-sample step: a 1 m/s walk at distance d gives ~8.7/d dB/s.
+         * Enter at 0.6 dB/s (walking within ~14 m); measured static-noise slope
+         * sd is 0.25 dB/s at 4 dB RSSI noise and 0.38 dB/s at 6 dB, so a lower
+         * entry threshold sits inside the noise floor and labels a still peer.
+         */
+        const val ENTER_SLOPE_DB_PER_SEC = 0.6
+
+        /** Hold a label until the slope decays to half the entry threshold;
+         * reversing to the opposite label still needs a full entry crossing. */
+        const val EXIT_SLOPE_DB_PER_SEC = 0.3
+
+        const val MIN_SPAN_SECONDS = 3.0
+        const val HIGH_CONF_MIN_SPAN_SECONDS = 6.0
+
+        /** Residual variance about the fitted line, unbiased (k-2) divisor.
+         * 4 dB² ≈ 2 dB residual std; above that the link is bouncing
+         * (multipath/body blocking) and the slope means nothing. Hysteresis here
+         * too — the label is hidden at LOW, so a hard threshold would blink a
+         * latched trend on and off as the variance crosses it. */
+        const val RESIDUAL_VARIANCE_ENTER = 4.0
+        const val RESIDUAL_VARIANCE_EXIT = 8.0
+
+        /** A hole this long (backgrounding, link stall, dropped reads) means the
+         * old samples describe a different situation: start over rather than
+         * regress across the gap. A backwards clock step resets for the same
+         * reason. */
+        const val GAP_RESET_SECONDS = 10.0
     }
 }

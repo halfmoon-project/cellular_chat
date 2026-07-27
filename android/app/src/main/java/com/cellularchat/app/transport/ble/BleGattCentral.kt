@@ -49,12 +49,20 @@ class BleGattCentral(
     private var inbox: BluetoothGattCharacteristic? = null
     private var listener: PeerTransport.Listener? = null
     private var ready = false
+    /**
+     * Live link RSSI for the §12 proximity fallback, with the timestamp stamped
+     * in the radio callback (the trend regresses over seconds). Central role
+     * only: a GATT server has no API for the connection's RSSI.
+     */
+    var onRssi: ((Int, Long) -> Unit)? = null
     // Set when the advertisement carried no service data: §9 requires reading the
     // rendezvous characteristic and matching its token before trusting the link.
     private var verifyViaRendezvous = false
 
     private val writeQueue = ArrayDeque<ByteArray>()
-    private var writing = false
+    // Volatile: the RSSI poll reads this off the handler thread to skip its tick,
+    // without taking the write lock.
+    @Volatile private var writing = false
 
     override fun setListener(listener: PeerTransport.Listener) {
         this.listener = listener
@@ -187,8 +195,13 @@ class BleGattCentral(
         override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
             if (!ready) {
                 ready = true
+                startRssiPolling()
                 onLinkReady()
             }
+        }
+
+        override fun onReadRemoteRssi(g: BluetoothGatt, rssi: Int, status: Int) {
+            if (status == BluetoothGatt.GATT_SUCCESS) onRssi?.invoke(rssi, System.currentTimeMillis())
         }
 
         @Suppress("DEPRECATION")
@@ -221,12 +234,35 @@ class BleGattCentral(
             if (writing) return
             val fragment = writeQueue.poll() ?: return
             writing = true
-            runCatching {
+            // writeCharacteristic reports a busy/failed stack by RETURNING false,
+            // not by throwing, so runCatching alone would leave `writing` stuck at
+            // true and silence this queue (and the RSSI poll) for the link's life.
+            val issued = runCatching {
                 characteristic.value = fragment
                 characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
                 g.writeCharacteristic(characteristic)
-            }.onFailure { writing = false }
+            }.getOrDefault(false)
+            if (!issued) writing = false
         }
+    }
+
+    /**
+     * Polls the link RSSI on the same handler as the fragment timeouts. Android
+     * allows ONE outstanding GATT operation per connection, so a tick that lands
+     * while a write is in flight is skipped, not queued: issuing it would either
+     * fail or strand [writing] at true and silence [drainWrites] for good. A
+     * dropped sample is harmless — the trend regression is timestamped, and a
+     * long enough hole resets the filter's history on its own.
+     */
+    private fun startRssiPolling() {
+        val tick = object : Runnable {
+            override fun run() {
+                if (!ready) return
+                if (!writing) runCatching { gatt?.readRemoteRssi() }
+                handler.postDelayed(this, RSSI_POLL_MILLIS)
+            }
+        }
+        handler.postDelayed(tick, RSSI_POLL_MILLIS)
     }
 
     private fun stopScan() {
@@ -246,4 +282,9 @@ class BleGattCentral(
 
     private fun hasPermission(permission: String): Boolean =
         context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+
+    private companion object {
+        /** Matches the iOS central's RSSI cadence (BLETransport.rssiInterval). */
+        const val RSSI_POLL_MILLIS = 1_500L
+    }
 }
