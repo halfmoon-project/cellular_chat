@@ -333,9 +333,17 @@ inbox       4A0C5002-9C6F-4B2E-8FD8-3B6A2E0D5C71   (write with response)
 outbox      4A0C5003-9C6F-4B2E-8FD8-3B6A2E0D5C71   (notify)
 ```
 
-- Preferred cross-platform roles: Android peripheral/advertiser, iOS
-  central/scanner. Same-platform pairs: the side with the bytewise smaller
-  pinned static public key acts as central/initiator.
+- Role ownership: the side with the bytewise smaller pinned static public key
+  acts as central/initiator. Both sides compute this from data they already
+  hold, so they always pick opposite roles; a side that assumes the central
+  role on any other ground risks both devices scanning while neither
+  advertises, which no retry can escape.
+- Preferred cross-platform roles (Android peripheral/advertiser, iOS
+  central/scanner — an iPhone advertising in the background is only visible to
+  other Apple devices) MAY override the tie-break, but ONLY once both sides
+  have persisted the peer's OS from the §11 capability exchange. Neither
+  implementation does that yet: iOS records it, Android does not, so both
+  currently use the key tie-break for every pair.
 - The advertisement carries the service UUID and, where the platform allows,
   the current token (§7) as service data. `rendezvous` always returns the
   peripheral's current 16-byte token so a central that could not read service
