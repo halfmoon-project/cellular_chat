@@ -32,6 +32,7 @@ final class PairingCoordinator: ObservableObject {
     private var pairId: [UInt8] = []
     private var invitation: Invitation?
     private var alias = "상대 기기"
+    private var didCommit = false
 
     init(pairStore: PairStore) {
         self.pairStore = pairStore
@@ -154,7 +155,10 @@ final class PairingCoordinator: ObservableObject {
                 fingerprint = try proto.fingerprintDisplay()
                 step = .awaitingFingerprint
 
-            case (_, .completing):
+            // The peer may confirm the fingerprint first: accept its
+            // pair_complete while this side is still on the confirm screen.
+            // Dropping it here left the second confirmer permanently unpaired.
+            case (_, .awaitingFingerprint), (_, .completing):
                 try proto.receivePairComplete(record)
                 try commitIfReady()
 
@@ -194,6 +198,7 @@ final class PairingCoordinator: ObservableObject {
                                 alias: alias, createdAt: UInt64(Date().timeIntervalSince1970),
                                 revoked: false)
         try pairStore.commit(record, pairRoot: root)
+        didCommit = true
         // Single-use invitation is now consumed; ephemeral state is dropped.
         invitation = nil
         // When Wi-Fi Aware system pairing is supported, run it now to record the
@@ -224,7 +229,10 @@ final class PairingCoordinator: ObservableObject {
     }
 
     private func fail(_ message: String) {
-        if case .done = step { return }
+        // The record is already persisted; a peer that closes the link right
+        // after its own commit (Android does) must not turn a finished pairing
+        // into an error — including while the system pairing sheet is up.
+        if didCommit { return }
         step = .failed(message)
     }
 
