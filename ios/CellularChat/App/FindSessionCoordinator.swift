@@ -26,6 +26,9 @@ final class FindSessionCoordinator: ObservableObject {
     /// the peer disconnects with `capabilityMismatch` (§14). Re-reading here is
     /// what lets a `deviceName` rename take effect from the next session (§11).
     private(set) var localCaps = LocalCapabilities.current()
+    /// Reads this device's CapabilitySet at each arm. Overridable in tests and by
+    /// the DEBUG dev peer, whose Simulator reports no radios at all.
+    var readLocalCaps: () -> CapabilitySet = { LocalCapabilities.current() }
     private let haptics = FindHaptics()
 
     /// VoiceOver announcement sink; overridable in tests. Defaults to posting a
@@ -91,6 +94,10 @@ final class FindSessionCoordinator: ObservableObject {
         return kinds
     }
 
+    /// Replaces the real radio candidates for one discovery pass. Nil in
+    /// production; set by the DEBUG dev peer, which has no radios to arbitrate.
+    var makeTransports: ((_ isInitiator: Bool) -> [PeerTransport])?
+
     /// Connected/ranging family states in which the driver evaluates upgrades (§10).
     private static let upgradeFamilyStates: Set<FindState> = [
         .connected, .rangingStarting, .directionAvailable, .distanceOnly, .proximityOnly, .connectedOnly,
@@ -143,7 +150,7 @@ final class FindSessionCoordinator: ObservableObject {
         if state != .idle { stop() }
         state = .idle
         reason = nil
-        localCaps = LocalCapabilities.current()
+        localCaps = readLocalCaps()
         selectedPair = pair
         activePair = pair
         deadline = Date().addingTimeInterval(duration)
@@ -193,7 +200,7 @@ final class FindSessionCoordinator: ObservableObject {
                                localToken: localToken, acceptsPeerToken: acceptsPeer)
         let aware = WiFiAwareTransport(role: isInitiator ? .subscriber : .publisher)
         let nearby = NearbyConnectionsTransport()
-        let all: [PeerTransport] = [aware, nearby, ble]
+        let all: [PeerTransport] = makeTransports?(isInitiator) ?? [aware, nearby, ble]
 
         Task { [weak self] in
             guard let self else { return }
