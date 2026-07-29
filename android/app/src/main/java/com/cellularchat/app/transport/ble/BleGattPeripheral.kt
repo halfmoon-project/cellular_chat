@@ -50,6 +50,8 @@ class BleGattPeripheral(
     private var listener: PeerTransport.Listener? = null
     private val pending = ConcurrentLinkedQueue<ByteArray>()
 
+    private val outboxQueue = NotifyQueue(::sendNotification)
+
     override fun setListener(listener: PeerTransport.Listener) {
         this.listener = listener
     }
@@ -130,12 +132,17 @@ class BleGattPeripheral(
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
+                    // Keep the first central: `central` is a single slot, so a
+                    // second connection would silently redirect every
+                    // notification away from the live peer.
+                    if (central != null) return
                     central = device
                     onLinkReady()
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     if (device == central) {
                         central = null
+                        outboxQueue.reset()
                         listener?.onLinkLost(ReasonCodes.TRANSPORT_LOST)
                     }
                 }
@@ -186,6 +193,10 @@ class BleGattPeripheral(
         override fun onMtuChanged(device: BluetoothDevice, mtu: Int) {
             fragments.mtu = mtu
         }
+
+        override fun onNotificationSent(device: BluetoothDevice, status: Int) {
+            outboxQueue.onSent()
+        }
     }
 
     override fun send(record: ByteArray) {
@@ -209,11 +220,21 @@ class BleGattPeripheral(
         }
     }
 
-    @Suppress("DEPRECATION")
     private fun notify(device: BluetoothDevice, characteristic: BluetoothGattCharacteristic, fragment: ByteArray) {
-        runCatching {
+        outboxQueue.enqueue(fragment)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun sendNotification(fragment: ByteArray): Boolean {
+        val device = central ?: return false
+        val characteristic = outbox ?: return false
+        return runCatching {
             characteristic.value = fragment
             server?.notifyCharacteristicChanged(device, characteristic, false)
+            true
+        }.getOrElse {
+            listener?.onLinkLost(ReasonCodes.TRANSPORT_LOST)
+            false
         }
     }
 

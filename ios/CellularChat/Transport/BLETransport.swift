@@ -41,11 +41,23 @@ final class BLETransport: NSObject, PeerTransport {
     private var peripheral: CBPeripheral?
     private var inboxChar: CBCharacteristic?
     private var reassembler = FragmentReassembler()
+    /// Candidates already rejected in this attempt (§7/§9 token mismatch, or a
+    /// failed connect). An iOS peripheral cannot advertise service data, so a
+    /// peer iPhone's token is only readable after connecting — which means we
+    /// commit to a candidate before we can filter it. Without this set the
+    /// rescan re-picks the same stranger every pass and a co-located third
+    /// device running this app starves the pair.
+    private var rejectedPeers: Set<UUID> = []
 
     // Peripheral state
     private var outboxChar: CBMutableCharacteristic?
     private var subscribedCentral: CBCentral?
     private var peerReassembler = FragmentReassembler()
+    /// Fragments waiting on Core Bluetooth's transmit queue (§9). `updateValue`
+    /// returns false when the queue is full and the fragment is NOT sent; a
+    /// dropped one stalls the peer's reassembly into the 10-second §9 budget and
+    /// surfaces to the user as "went out of range", so it must be retried.
+    private var outboxQueue: [Data] = []
 
     private var connectContinuation: CheckedContinuation<Result<Void, TransportFailure>, Never>?
     private var didConnect = false
@@ -104,6 +116,12 @@ final class BLETransport: NSObject, PeerTransport {
             if let p = self.peripheral { self.central?.cancelPeripheralConnection(p) }
             self.peripheralMgr?.stopAdvertising()
             self.central?.stopScan()
+            // Release the peripheral-side link BEFORE reporting: the central's
+            // unsubscribe lands after we tear down, and `didUnsubscribeFrom`
+            // would otherwise report `.transportLost` on top of this reason —
+            // a spurious signalLost/retry right after a deliberate stop.
+            self.subscribedCentral = nil
+            self.outboxQueue.removeAll()
             self.onClosed?(reason)
         }
     }
@@ -186,11 +204,30 @@ final class BLETransport: NSObject, PeerTransport {
                 peripheral.writeValue(Data(frag), for: inboxChar, type: .withResponse)
             }
         case .peripheral:
-            guard let outboxChar, let subscribedCentral, let mgr = peripheralMgr else { return }
+            guard let subscribedCentral else { return }
             let mtu = subscribedCentral.maximumUpdateValueLength + 3
-            for frag in Fragmentation.fragment(record: record, mtu: mtu) {
-                mgr.updateValue(Data(frag), for: outboxChar, onSubscribedCentrals: [subscribedCentral])
-            }
+            outboxQueue.append(contentsOf: Fragmentation.fragment(record: record, mtu: mtu).map { Data($0) })
+            drainOutbox()
+        }
+    }
+
+    /// Sends `queue` through `send` in order, stopping at the first fragment
+    /// `send` refuses, and returns what is still unsent. `updateValue`'s result
+    /// is authoritative: false means the fragment did NOT go out, so it must
+    /// stay queued rather than be dropped. Pure, so the rule is testable
+    /// without Core Bluetooth.
+    static func drain(_ queue: [Data], send: (Data) -> Bool) -> [Data] {
+        var remaining = queue
+        while let next = remaining.first, send(next) { remaining.removeFirst() }
+        return remaining
+    }
+
+    /// Pushes queued fragments until Core Bluetooth's transmit queue fills; the
+    /// remainder drains from `peripheralManagerIsReady(toUpdateSubscribers:)`.
+    private func drainOutbox() {
+        guard let outboxChar, let subscribedCentral, let mgr = peripheralMgr else { return }
+        outboxQueue = Self.drain(outboxQueue) {
+            mgr.updateValue($0, for: outboxChar, onSubscribedCentrals: [subscribedCentral])
         }
     }
 
@@ -218,11 +255,17 @@ extension BLETransport: CBCentralManagerDelegate {
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
                         advertisementData: [String: Any], rssi RSSI: NSNumber) {
+        // Never re-pick a candidate this attempt already rejected, and never
+        // abandon one that is still being evaluated.
+        guard self.peripheral == nil, !rejectedPeers.contains(peripheral.identifier) else { return }
         // Prefer the token from service data; fall back to the rendezvous read
         // after connect (§9: iOS overflow-area advertising may hide service data).
         if let sd = advertisementData[CBAdvertisementDataServiceDataKey] as? [CBUUID: Data],
            let tokenData = sd[BLEIDs.service] {
-            guard acceptsPeerToken(Array(tokenData)) else { return }
+            guard acceptsPeerToken(Array(tokenData)) else {
+                rejectedPeers.insert(peripheral.identifier)
+                return
+            }
             tokenVerified = true   // §7/§9 filter satisfied from the advertisement
         }
         central.stopScan()
@@ -231,15 +274,34 @@ extension BLETransport: CBCentralManagerDelegate {
         central.connect(peripheral, options: nil)
     }
 
+    /// Drops the current candidate and resumes scanning for another. The
+    /// `connectTimeout` still bounds the whole attempt, so this cannot spin
+    /// forever; without it the first stranger advertising our service UUID ends
+    /// the attempt outright.
+    private func rejectCandidate(_ candidate: CBPeripheral) {
+        rejectedPeers.insert(candidate.identifier)
+        central?.cancelPeripheralConnection(candidate)
+        peripheral = nil
+        inboxChar = nil
+        tokenVerified = false
+        notifyReady = false
+        reassembler = FragmentReassembler()
+        central?.scanForPeripherals(withServices: [BLEIDs.service],
+                                    options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+    }
+
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         peripheral.discoverServices([BLEIDs.service])
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
-        finishConnect(.failure(.failed))
+        rejectCandidate(peripheral)
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        // Before the link is up this fires from our own `rejectCandidate`, which
+        // is still searching — not a lost session.
+        guard didConnect else { return }
         stopMonitors()
         onClosed?(.transportLost)
     }
@@ -271,8 +333,7 @@ extension BLETransport: CBPeripheralDelegate {
         case BLEIDs.rendezvous:
             // Verify the peripheral's current token before treating it as our peer.
             guard acceptsPeerToken(Array(data)) else {
-                central?.cancelPeripheralConnection(peripheral)
-                finishConnect(.failure(.failed))
+                rejectCandidate(peripheral)
                 return
             }
             tokenVerified = true
@@ -343,7 +404,26 @@ extension BLETransport: CBPeripheralManagerDelegate {
 
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral,
                            didSubscribeTo characteristic: CBCharacteristic) {
+        // Keep the first subscriber: `subscribedCentral` is a single slot, so a
+        // second central subscribing would silently redirect every notification
+        // away from the live peer. Noise IKpsk2 prevents impersonation, but
+        // nothing else protects availability here.
+        guard characteristic.uuid == BLEIDs.outbox, subscribedCentral == nil else { return }
         subscribedCentral = central
         finishConnect(.success(()))
+    }
+
+    func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral,
+                           didUnsubscribeFrom characteristic: CBCharacteristic) {
+        guard characteristic.uuid == BLEIDs.outbox,
+              subscribedCentral?.identifier == central.identifier else { return }
+        subscribedCentral = nil
+        outboxQueue.removeAll()
+        stopMonitors()
+        onClosed?(.transportLost)
+    }
+
+    func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
+        drainOutbox()
     }
 }
