@@ -817,12 +817,47 @@ Aware만은 안 줄어든다.**
 - 둘 다 앱이 **이미 계산하고 있는 값**이라 새 배선이 없다. 하지만 §6의
   선결 조건(로그 emitter가 0개)이 먼저다.
 
-### 13.4 재조사가 찾아낸 6번째 버그
+### 13.4 재조사가 찾아낸 6번째 버그 — 해결됨 (2026-07-29)
 
 **`_cellfind._udp` vs `cellfind` 서비스 이름 불일치.** iOS는 RFC6763 표기를
-요구하고 Android는 맨 이름을 publish한다. `WiFiAwareTransport.swift:22-24`의
-주석이 이미 자백하고 있다. → **첫 크로스플랫폼 Wi-Fi Aware 테스트는 반드시
-실패한다.** 폰을 사기 전에 고쳐야 한다. 상수 하나 + 벡터 하나.
+쓰고 Android는 맨 이름을 publish했다. **첫 크로스플랫폼 Wi-Fi Aware 테스트는
+반드시 실패할 상태였다.**
+
+NAN은 서비스 이름을 무선으로 실어 보내지 않는다 — 이름을 해시한 **6바이트
+Service ID**만 보내고, 수신 측은 고정폭 비교를 한다. 즉 철자가 한 글자라도
+다르면 **양쪽 어디에도 에러 없이** 발견이 통째로 실패한다:
+
+```
+sha256("_cellfind._udp")[0..6] = 58bd1bc27102   ← 실제 무선 구간 값
+sha256("cellfind")[0..6]       = 1b68dd9f32c5
+```
+
+**iOS는 못 바꾼다.** Apple이 이 이름을 *"the full name of the service, as sent
+over the air"* 로 규정하고 Info.plist 키도 *"exactly as it is sent
+over-the-air"* 를 요구하며, 형식을 어기면 **앱이 크래시한다**(Apple 문서 원문).
+게다가 `WAService`에는 이니셜라이저가 없어서 iOS는 Info.plist에 선언된 이름만
+쓸 수 있다. Android의 `setServiceName`은 `_`와 `.`를 허용하므로(1–255바이트,
+`[A-Za-z0-9._-]`) **Android가 맞추는 쪽이다.**
+
+§5에 이름과 Service ID를 고정했고, 양 플랫폼 테스트가 **소스 문자열이 아니라
+무선 구간 6바이트**를 검증한다. iOS 쪽은 Info.plist 키까지 대조한다 — 거기가
+어긋나면 `allServices[name]`이 nil이라 `isAvailable`이 조용히 false가 된다.
+
+**주의**: `cellfind`를 전역 치환하면 안 된다. 나머지 11곳은 KDF 라벨과
+Noise 프롤로그(§2/§6/§8)로 **바이트 단위 암호 입력**이고, 한쪽만 바꾸면
+핸드셰이크가 어긋난다 — 이름 버그보다 훨씬 진단하기 어려운 실패다.
+
+**남은 위험** (이름을 맞춘다고 해결되지 않는 것): Apple의 Wi-Fi Aware는
+`WAPairedDevice`로만 피어를 노출하고 "이 서비스를 광고하는 아무 기기나"
+옵션이 프레임워크에 없다. 새 기기는 `DeviceDiscoveryUI`의 `DevicePairingView()`
+로만 들어온다. 즉 **이름이 완벽히 맞아도 iOS가 페어링되지 않은 Android
+피어를 노출하지 않을 수 있다.** 이건 폰을 사도 남는 게이트다.
+
+참고: Apple 규약은 접미사를 데이터 경로에 맞춘다(TCP면 `_tcp`, 그 외 `_udp`).
+이 프로젝트의 Aware 데이터 경로는 양쪽 다 TCP라 `_udp`는 규약에 안 맞는다.
+그래도 유지했다 — Apple의 크래시 검증은 *형식*에 대한 것이고 두 형식 다
+유효하며, iOS↔iOS는 지금 `_udp`로 동작한다. 바꾸려면 리터럴 3곳을 한 커밋에
+같이 옮겨야 하고, 비용은 지금이나 나중이나 같다.
 
 ### 13.5 여전히 안 줄어드는 것
 
@@ -857,10 +892,9 @@ Aware만은 안 줄어든다.**
 
 **완료됨** (2026-07-29): §0.1 DevPeer 적용, §0.5 버그 1~5 수정, §11 밴드
 임계값 정렬 + `shared/vectors/rssi_bands.json` 신설, §12 `proximity_hint`
-(msgType 25) 추가. 코어 35 + iOS 103 + Android 161 = **299 테스트 통과.**
+(msgType 25) 추가, §13.4 Wi-Fi Aware 서비스 이름 정렬 + §5에 고정.
 
-1. **§13.4 Wi-Fi Aware 서비스 이름 불일치 수정** — 상수 하나. 폰 사기 전에.
-2. **`CellularChatTests`에 `DEVELOPMENT_TEAM` 추가** — 한 줄. 실기기 테스트를
+1. **`CellularChatTests`에 `DEVELOPMENT_TEAM` 추가** — 한 줄. 실기기 테스트를
    막고 있는 유일한 것. 실기기가 필요한 나머지 절반의 루프가 여기서 열린다.
 4. **Android 에뮬레이터 2대 레인 + ranging 훅 3줄** (§0.2) —
    `FindController.kt:244`의 구체 캐스트를 풀어야 peripheral 쪽 UI가 산다.

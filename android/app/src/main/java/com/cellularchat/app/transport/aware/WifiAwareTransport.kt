@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Wi-Fi Aware (NAN) transport (IMPLEMENTATION_PLAN.md §8, PROTOCOL_V2.md §5/§8).
- * Fixed service name "cellfind"; a ConnectivityManager data path carries a TCP
+ * Fixed service name "_cellfind._udp" (§5); a ConnectivityManager data path carries a TCP
  * socket framed with u32BE record framing from core. The publisher is the data-
  * path responder (Noise responder); the subscriber is the initiator.
  *
@@ -284,7 +284,16 @@ class WifiAwareTransport(
     }
 
     companion object {
-        const val SERVICE_NAME = "cellfind"
+        /**
+         * §5-pinned. MUST byte-match iOS (`WiFiAwareTransport.serviceName` and
+         * the Info.plist `WiFiAwareServices` key) — NAN hashes this into a
+         * 6-byte Service ID and matches with a fixed-width compare, so any
+         * difference is a silent, total discovery failure. This published the
+         * bare name `cellfind` until 2026-07, which could never have matched
+         * iOS. Unrelated to the `cellfind/v2 …` crypto labels; never rename
+         * them together.
+         */
+        const val SERVICE_NAME = "_cellfind._udp"
         private val HELLO = byteArrayOf('c'.code.toByte(), 'f'.code.toByte())
     }
 }

@@ -170,6 +170,44 @@ protocol error. Message-oriented transports (Nearby Connections BYTES
 payloads) carry exactly one record per payload. BLE GATT uses the
 fragmentation layer in §9.
 
+### Wi-Fi Aware service name (fixed)
+
+```text
+_cellfind._udp
+```
+
+Both platforms MUST publish and subscribe this **exact** string. NAN carries
+no service name on air — only a 6-byte Service ID hashed from it — and the
+receiver matches with a fixed-width compare, so any spelling difference is an
+all-or-nothing discovery failure with no error on either side:
+
+```text
+sha256("_cellfind._udp")[0..6] = 58bd1bc27102   <- the on-air Service ID
+sha256("cellfind")[0..6]       = 1b68dd9f32c5
+```
+
+The RFC 6763 form is not a style choice. Apple documents the name as "the
+full name of the service, as sent over the air", requires the Info.plist
+`WiFiAwareServices` key to carry it "exactly as it is sent over-the-air", and
+crashes the app on a name that violates the form. `WAService` has no
+initializer, so iOS can only use a name declared in Info.plist — iOS
+physically cannot adopt a bare name. Android's `setServiceName` accepts
+`_`/`.` (1–255 UTF-8 bytes, `[A-Za-z0-9._-]`), so Android is the side that
+conforms.
+
+This string is a **discovery identifier only**. It is unrelated to the
+`"cellfind/v2 …"` KDF labels (§2) and the `"cellfind/v2/…"` prologues
+(§6, §8), which are byte-exact crypto inputs — never rename those together
+with this one.
+
+> Apple's convention ties the suffix to the data path (`_tcp` when using TCP,
+> `_udp` otherwise) and this project's Aware data path is TCP on both sides,
+> so `_udp` does not follow that convention. It is kept deliberately: Apple
+> validates the *form*, both forms are valid, and iOS↔iOS works on `_udp`
+> today. Changing it means moving three literals — `Info.plist`,
+> `WiFiAwareTransport.swift`, `WifiAwareTransport.kt` — in one commit, and
+> costs the same later as now.
+
 Records MUST be processed strictly in order. The transport plus reassembly
 layer guarantees ordered, complete records; the AEAD counter then rejects
 any residual reordering, replay, or truncation.

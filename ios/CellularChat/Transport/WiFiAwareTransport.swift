@@ -18,9 +18,12 @@ import CellularChatCore
 final class WiFiAwareTransport: PeerTransport {
     enum WARole { case subscriber, publisher }
 
-    // RFC6763 form: the WiFiAware framework traps on any other spelling, both
-    // here and on the Info.plist key. Android publishes the bare NAN name
-    // "cellfind"; cross-platform Aware discovery is still an unvalidated gate.
+    // §5-pinned; MUST byte-match the Info.plist `WiFiAwareServices` key and
+    // Android's `WifiAwareTransport.SERVICE_NAME`. Apple documents this as the
+    // full name "as sent over the air" and crashes on a name that breaks the
+    // RFC6763 form `_<name>._tcp|_udp` — so the FORM is forced, though `_udp`
+    // itself is our choice. `WAService` has no initializer, so iOS can only use
+    // a name declared in Info.plist: iOS is the side that cannot move.
     static let serviceName = "_cellfind._udp"
 
     let kind: TransportKind = .wifiAware
