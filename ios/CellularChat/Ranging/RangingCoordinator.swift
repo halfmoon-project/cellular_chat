@@ -47,9 +47,15 @@ final class RangingCoordinator: ObservableObject {
     /// and a hard `FATAL` — never a ranging fallback.
     var onCapabilityMismatch: (() -> Void)?
 
+    /// Dev peer (Simulator): there is no UWB radio to start, so the platform
+    /// ranger stays down and samples arrive through `injectUWB` instead.
+    var simulatedRanging = false
+
     private let peerRanger = ApplePeerRanger()
     private let interopRanger = AndroidInteropRanger()
     private let rssiFilter = RSSIProximityFilter()
+    /// Last band pushed to the peer (§12 `proximity_hint` is edge-triggered).
+    private var lastSentBand: ProximityBand?
     private var backoff = BoundedBackoff()
     private var retryTask: Task<Void, Never>?
     private var active = false
@@ -120,6 +126,7 @@ final class RangingCoordinator: ObservableObject {
         peerRanger.stop()
         interopRanger.stop()
         rssiFilter.reset()
+        lastSentBand = nil   // the next session re-announces from scratch
         measurement = nil
         stateText = "중지됨"
     }
@@ -195,6 +202,15 @@ final class RangingCoordinator: ObservableObject {
             if let id = attemptId, let data = body.value(forKey: 2)?.asBytes {
                 onAppleConfig(attemptId: id, data: Data(data))
             }
+        case .proximityHint:
+            // §12: the peer is the BLE central and owns the only RSSI source, so
+            // its band is displayed verbatim and never re-filtered here. A UWB
+            // sample always wins — it is strictly better information.
+            guard let band = ProximityBand(wireCode: body.value(forKey: 1)?.asUInt),
+                  measurement?.distanceMeters == nil else { return }
+            measurement = Measurement(timestamp: Date(), method: .bleRssi,
+                                      distanceMeters: nil, horizontalAngleRadians: nil,
+                                      proximity: band)
         case .oobData:
             // §14 (B.2.4): oob_data implies uwb_android_oob (never supported on iOS).
             guard methodSupported(.uwbAndroidOob) else { raiseCapabilityMismatch(); return }
@@ -239,8 +255,14 @@ final class RangingCoordinator: ObservableObject {
         // Distinct from the negotiation texts: past this point the offer/accept
         // exchange is done and silence means NI itself is producing nothing.
         stateText = "UWB 세션 시작 · 상대 응답 대기"
-        if selection?.method == .niPeer { peerRanger.start(enableEDM: selection?.edm ?? false) }
+        if selection?.method == .niPeer, !simulatedRanging {
+            peerRanger.start(enableEDM: selection?.edm ?? false)
+        }
     }
+
+    /// Feed a synthetic UWB sample from the dev peer down the same path a real
+    /// NI update takes; nil means "sample lost" → RSSI fallback + backoff (§12).
+    func injectUWB(_ m: Measurement?) { handleUWB(measurement: m) }
 
     private func onNiToken(attemptId: UInt64, data: Data) {
         guard attemptId == currentAttemptId else { return }
@@ -276,9 +298,17 @@ final class RangingCoordinator: ObservableObject {
     }
 
     /// Feed a raw RSSI reading from the BLE link for the proximity fallback (§12).
+    /// Only the BLE central has a link-RSSI API, so reaching here also means this
+    /// device is the one that can classify — hence the §12 `proximity_hint` push
+    /// to the peer, whose GATT-server side would otherwise show nothing at all.
     func feedRSSI(_ rssi: Double, at timestamp: TimeInterval = Date().timeIntervalSince1970) {
         guard active else { return }
         let band = rssiFilter.add(rssi: rssi, at: timestamp)
+        // Edge-triggered: one message per band change, not per sample.
+        if band != lastSentBand {
+            lastSentBand = band
+            sendMessage?(.proximityHint, .map([CBORPair(.uint(1), .uint(band.wireCode))]))
+        }
         // Only surface RSSI proximity when UWB is not currently providing a sample.
         if selection?.method == .bleRssi || measurement == nil || measurement?.proximity != nil {
             measurement = Measurement(timestamp: Date(), method: .bleRssi,

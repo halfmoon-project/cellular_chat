@@ -101,6 +101,7 @@ public enum SessionMsgType: UInt64 {
     case appleShareable = 22
     case niToken = 23
     case oobData = 24
+    case proximityHint = 25
     case findActive = 32
     case findStopping = 33
     case findExpired = 34

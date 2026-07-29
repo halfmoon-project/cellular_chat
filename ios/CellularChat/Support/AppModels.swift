@@ -96,6 +96,26 @@ struct PairRecord: Codable, Equatable, Identifiable {
 enum ProximityBand: String, Equatable {
     case veryNear, near, far, unknown
 
+    /// §5 `proximity_hint` band encoding.
+    var wireCode: UInt64 {
+        switch self {
+        case .unknown: return 0
+        case .far: return 1
+        case .near: return 2
+        case .veryNear: return 3
+        }
+    }
+
+    init?(wireCode: UInt64?) {
+        switch wireCode {
+        case 0: self = .unknown
+        case 1: self = .far
+        case 2: self = .near
+        case 3: self = .veryNear
+        default: return nil
+        }
+    }
+
     var label: String {
         switch self {
         case .veryNear: return "매우 가까움"

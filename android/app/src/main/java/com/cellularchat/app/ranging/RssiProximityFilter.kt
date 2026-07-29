@@ -13,9 +13,9 @@ package com.cellularchat.app.ranging
  */
 class RssiProximityFilter(
     private val windowSize: Int = 5,
-    private val veryNearThresholdDb: Int = -60,
-    private val nearThresholdDb: Int = -80,
-    private val hysteresisDb: Int = 4,
+    private val veryNearThresholdDb: Int = -55,
+    private val nearThresholdDb: Int = -75,
+    private val hysteresisDb: Int = 5,
 ) {
     private val window = ArrayDeque<Int>()
     private var band: ProximityBand = ProximityBand.UNKNOWN
@@ -66,25 +66,13 @@ class RssiProximityFilter(
     // --- approaching/receding trend with confidence ---
 
     /**
-     * Appends the current window's averaged-middle median to [medianHistory] and
-     * re-runs the least-squares regression. This median definition is used ONLY
-     * for the trend and is independent of the band's own (upper-middle) median,
-     * so the trend is cross-platform-identical.
+     * Appends the current window's median to [medianHistory] and re-runs the
+     * least-squares regression. Band and trend share the one §12 median.
      */
     private fun updateTrend(timestamp: Double) {
-        medianHistory.addLast(timestamp to trendMedianOf(window))
+        medianHistory.addLast(timestamp to medianOf(window))
         while (medianHistory.size > MEDIAN_HISTORY) medianHistory.removeFirst()
         recomputeTrend()
-    }
-
-    private fun trendMedianOf(values: Collection<Int>): Double {
-        val sorted = values.sorted()
-        val n = sorted.size
-        return if (n % 2 == 1) {
-            sorted[n / 2].toDouble()
-        } else {
-            (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0
-        }
     }
 
     private fun recomputeTrend() {
@@ -153,41 +141,57 @@ class RssiProximityFilter(
         }
     }
 
-    private fun medianOf(values: Collection<Int>): Int {
+    /**
+     * Averaged-middle median, pinned by §12 so both platforms classify a given
+     * sequence identically. Used for the band AND the trend: the band used to
+     * take the upper-middle Int instead, which disagreed with iOS on every
+     * even-sized window (i.e. while the window is still filling).
+     */
+    private fun medianOf(values: Collection<Int>): Double {
         val sorted = values.sorted()
-        return sorted[sorted.size / 2]
+        val n = sorted.size
+        return if (n % 2 == 1) sorted[n / 2].toDouble()
+        else (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0
     }
 
-    private fun nextBand(currentBand: ProximityBand, median: Int): ProximityBand {
-        // Boundaries are widened in the direction of the current band so that
-        // leaving a band requires overshooting its entry threshold.
-        val veryNearEntry = veryNearThresholdDb
-        val nearEntry = nearThresholdDb
-        return when (currentBand) {
-            ProximityBand.VERY_NEAR ->
-                if (median < veryNearEntry - hysteresisDb) demoteFrom(median) else ProximityBand.VERY_NEAR
-            ProximityBand.NEAR -> when {
-                median >= veryNearEntry + hysteresisDb -> ProximityBand.VERY_NEAR
-                median < nearEntry - hysteresisDb -> ProximityBand.FAR
-                else -> ProximityBand.NEAR
+    /**
+     * §12 band classification. Changing bands requires the median to clear the
+     * crossed boundary by [hysteresisDb]; staying put needs nothing. Pinned
+     * against `shared/vectors/rssi_bands.json`, which both platforms consume —
+     * this used to be a looser rule than iOS's and the two phones of one pair
+     * reported different bands at the same distance.
+     */
+    private fun nextBand(currentBand: ProximityBand, median: Double): ProximityBand {
+        val raw = rawBand(median)
+        // First real reading, or no change: accept directly.
+        if (currentBand == ProximityBand.UNKNOWN || raw == currentBand) return raw
+        val vn = veryNearThresholdDb
+        val near = nearThresholdDb
+        val m = hysteresisDb
+        return when {
+            currentBand == ProximityBand.FAR -> when {
+                median >= vn + m -> ProximityBand.VERY_NEAR
+                median >= near + m -> ProximityBand.NEAR
+                else -> currentBand
             }
-            ProximityBand.FAR ->
-                if (median >= nearEntry + hysteresisDb) promoteFrom(median) else ProximityBand.FAR
-            ProximityBand.UNKNOWN -> rawBand(median)
+            currentBand == ProximityBand.NEAR && raw == ProximityBand.VERY_NEAR ->
+                if (median >= vn + m) ProximityBand.VERY_NEAR else currentBand
+            currentBand == ProximityBand.NEAR && raw == ProximityBand.FAR ->
+                if (median < near - m) ProximityBand.FAR else currentBand
+            currentBand == ProximityBand.VERY_NEAR -> when {
+                median < near - m -> ProximityBand.FAR
+                median < vn - m -> ProximityBand.NEAR
+                else -> currentBand
+            }
+            else -> raw
         }
     }
 
-    private fun rawBand(median: Int): ProximityBand = when {
+    private fun rawBand(median: Double): ProximityBand = when {
         median >= veryNearThresholdDb -> ProximityBand.VERY_NEAR
         median >= nearThresholdDb -> ProximityBand.NEAR
         else -> ProximityBand.FAR
     }
-
-    private fun demoteFrom(median: Int): ProximityBand =
-        if (median >= nearThresholdDb) ProximityBand.NEAR else ProximityBand.FAR
-
-    private fun promoteFrom(median: Int): ProximityBand =
-        if (median >= veryNearThresholdDb) ProximityBand.VERY_NEAR else ProximityBand.NEAR
 
     companion object {
         // Trend parameters, pinned in code on both platforms so a given

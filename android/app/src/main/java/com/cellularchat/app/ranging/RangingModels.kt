@@ -1,7 +1,27 @@
 package com.cellularchat.app.ranging
 
 /** Coarse proximity bands from BLE RSSI (PROTOCOL_V2.md §12). Never a distance. */
-enum class ProximityBand { VERY_NEAR, NEAR, FAR, UNKNOWN }
+enum class ProximityBand {
+    VERY_NEAR, NEAR, FAR, UNKNOWN;
+
+    /** §5 `proximity_hint` band encoding. */
+    fun wireCode(): Long = when (this) {
+        UNKNOWN -> 0L
+        FAR -> 1L
+        NEAR -> 2L
+        VERY_NEAR -> 3L
+    }
+
+    companion object {
+        fun fromWireCode(code: Long?): ProximityBand? = when (code) {
+            0L -> UNKNOWN
+            1L -> FAR
+            2L -> NEAR
+            3L -> VERY_NEAR
+            else -> null
+        }
+    }
+}
 
 /**
  * RSSI approaching/receding trend (Feature C). Local, advisory only — never a

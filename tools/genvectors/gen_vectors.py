@@ -556,6 +556,83 @@ def gen_cbor_vectors():
     }
 
 
+def gen_rssi_bands():
+    """§12 BLE RSSI proximity bands: window 5, averaged-middle median, entry at
+    -55/-75 dBm, 5 dB hysteresis. Reference implementation for both platforms.
+
+    These parameters used to live only in each app's code and had silently
+    diverged (iOS -55/-75 margin 5 vs Android -60/-80 hysteresis 4, plus a
+    different median rule), so the two phones of one pair reported different
+    bands at the same distance. §12 now pins them and this fixture enforces it.
+    """
+    WINDOW, VERY_NEAR, NEAR, MARGIN = 5, -55.0, -75.0, 5.0
+    UNKNOWN, FAR, NEARB, VERYNEAR = "unknown", "far", "near", "veryNear"
+
+    def median(xs):
+        s = sorted(xs)
+        n = len(s)
+        return float(s[n // 2]) if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2.0
+
+    def raw(m):
+        return VERYNEAR if m >= VERY_NEAR else (NEARB if m >= NEAR else FAR)
+
+    def classify(m, cur):
+        r = raw(m)
+        if cur == UNKNOWN or r == cur:
+            return r
+        if cur == FAR:
+            if m >= VERY_NEAR + MARGIN:
+                return VERYNEAR
+            if m >= NEAR + MARGIN:
+                return NEARB
+            return cur
+        if cur == NEARB and r == VERYNEAR:
+            return VERYNEAR if m >= VERY_NEAR + MARGIN else cur
+        if cur == NEARB and r == FAR:
+            return FAR if m < NEAR - MARGIN else cur
+        if cur == VERYNEAR:
+            if m < NEAR - MARGIN:
+                return FAR
+            if m < VERY_NEAR - MARGIN:
+                return NEARB
+            return cur
+        return r
+
+    def run(samples):
+        win, band, out = [], UNKNOWN, []
+        for s in samples:
+            win.append(s)
+            win = win[-WINDOW:]
+            band = classify(median(win), band)
+            out.append(band)
+        return out
+
+    cases = [
+        # Warm-up walks even-sized windows, where the median rule used to differ.
+        ("warmup_even_windows", [-70, -50, -70, -50, -70]),
+        ("ramp_far_to_verynear", [-90] * 5 + [-70] * 5 + [-48] * 5),
+        # One dropout must not move the band: that is what the median is for.
+        ("single_outlier_ignored", [-50, -52, -95, -51, -50]),
+        # -54 is past the -55 entry but inside the 5 dB margin: no promotion.
+        ("hysteresis_holds_near", [-65] * 5 + [-54] * 5 + [-49] * 5),
+        # Symmetric on the way down: -56 is past entry but inside the margin.
+        ("hysteresis_holds_verynear", [-48] * 5 + [-56] * 5 + [-62] * 5),
+        ("demote_verynear_to_far", [-45] * 5 + [-95] * 5),
+        ("boundary_exact_entries", [-55] * 5 + [-75] * 5 + [-76] * 5),
+    ]
+    return {
+        "params": {
+            "window": WINDOW, "veryNearEntryDbm": VERY_NEAR,
+            "nearEntryDbm": NEAR, "hysteresisDb": MARGIN,
+            "median": "averaged-middle",
+        },
+        "bandCodes": {"unknown": 0, "far": 1, "near": 2, "veryNear": 3},
+        "cases": [
+            {"name": n, "samplesDbm": s, "expectedBands": run(s)} for n, s in cases
+        ],
+    }
+
+
 def main():
     cacophony_path, outdir = sys.argv[1], sys.argv[2]
     official = check_official(cacophony_path)
@@ -569,6 +646,7 @@ def main():
         print(f"wrote {name}")
 
     write("noise_official_vectors.json", {"vectors": official})
+    write("rssi_bands.json", gen_rssi_bands())
 
     # ---- pairing handshake + pairing channel
     pairing = run_pairing()

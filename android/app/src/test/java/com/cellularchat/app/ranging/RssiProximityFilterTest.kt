@@ -35,16 +35,17 @@ class RssiProximityFilterTest {
 
     @Test
     fun hysteresisPreventsFlickerNearABoundary() {
-        val filter = RssiProximityFilter() // veryNear >= -60, near >= -80, H = 4
+        // §12-pinned: veryNear >= -55, near >= -75, hysteresis 5.
+        val filter = RssiProximityFilter()
         assertEquals(ProximityBand.VERY_NEAR, feed(filter, -50, 5))
-        // -62 is past the -60 boundary but within hysteresis of the entry level:
+        // -58 is past the -55 boundary but within hysteresis of the entry level:
         // the band must hold at VERY_NEAR rather than flicker to NEAR.
-        assertEquals(ProximityBand.VERY_NEAR, feed(filter, -62, 5))
-        // Only once the median clears -64 does it demote.
-        assertEquals(ProximityBand.NEAR, feed(filter, -66, 5))
-        // Coming back to -62 must NOT immediately re-promote (needs >= -56).
+        assertEquals(ProximityBand.VERY_NEAR, feed(filter, -58, 5))
+        // Only once the median drops below -60 does it demote.
         assertEquals(ProximityBand.NEAR, feed(filter, -62, 5))
+        // Coming back to -58 must NOT immediately re-promote (needs >= -50).
+        assertEquals(ProximityBand.NEAR, feed(filter, -58, 5))
         // A clearly strong signal re-promotes.
-        assertEquals(ProximityBand.VERY_NEAR, feed(filter, -54, 5))
+        assertEquals(ProximityBand.VERY_NEAR, feed(filter, -48, 5))
     }
 }

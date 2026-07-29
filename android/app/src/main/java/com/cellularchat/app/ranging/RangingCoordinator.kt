@@ -56,6 +56,8 @@ class RangingCoordinator(
         fun onCapabilityMismatch() {}
     }
 
+    /** Last band pushed to the peer (§12 `proximity_hint` is edge-triggered). */
+    private var lastSentBand: ProximityBand? = null
     private var method: Int = RangingMethod.BLE_RSSI
     private var attemptId: Long = 0
     private var peerUuid: UUID? = null
@@ -199,6 +201,13 @@ class RangingCoordinator(
                 val data = (body[2L] as? CborBytes)?.value ?: return
                 controller.startFromShareable(data, uuid)
             }
+            SessionMsgType.PROXIMITY_HINT -> {
+                // §12: the peer is the BLE central and owns the only RSSI source,
+                // so its band is displayed verbatim and never re-filtered here.
+                // The trend is local-only, so it stays LOW/STEADY for a hint.
+                val band = ProximityBand.fromWireCode((body[1L] as? CborInt)?.value) ?: return
+                if (foreground) output.onProximity(band, RssiTrend.STEADY, TrendConfidence.LOW)
+            }
             SessionMsgType.OOB_DATA -> {
                 // Implicit offer for uwb_android_oob (B.2.4): verify before adopting.
                 if (!methodSupported(RangingMethod.UWB_ANDROID_OOB)) return raiseCapabilityMismatch()
@@ -220,10 +229,23 @@ class RangingCoordinator(
     }
 
     /** Feeds one raw BLE RSSI reading (dBm); drives the UI only on the band path.
-     * [atMillis] is stamped in the radio callback (see BleGattCentral). */
+     * [atMillis] is stamped in the radio callback (see BleGattCentral).
+     *
+     * Only the BLE central has a link-RSSI API, so reaching here also means this
+     * device is the one that can classify — hence the §12 `proximity_hint` push
+     * to the peer, whose GATT-server side would otherwise show nothing at all.
+     */
     fun feedRssi(rssiDb: Int, atMillis: Long = System.currentTimeMillis()) {
         if (stopped) return
         val band = filter.update(rssiDb, atMillis)
+        // Edge-triggered: one message per band change, not per sample.
+        if (band != lastSentBand) {
+            lastSentBand = band
+            output.sendSessionMessage(
+                SessionMsgType.PROXIMITY_HINT,
+                cborMapOf(1L to CborInt(band.wireCode())),
+            )
+        }
         // RSSI is non-UWB, so it is foreground-only (§8). The advisory trend
         // (Feature C) accompanies every RSSI-derived proximity value.
         if (proximityActive && foreground) output.onProximity(band, filter.trend, filter.trendConfidence)
@@ -295,6 +317,7 @@ class RangingCoordinator(
         runCatching { rawUwb?.stop() }
         runCatching { androidOob?.stop() }
         filter.reset()
+        lastSentBand = null   // the next session re-announces from scratch
     }
 
     fun close() {

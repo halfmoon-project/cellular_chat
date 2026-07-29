@@ -304,6 +304,7 @@ the logical Find session ID (§10). Both mismatches are fatal.
 | 22 | `apple_shareable` | `{1: attemptId, 2: data (bstr, 35 bytes per UWB_INTEROP.md)}` |
 | 23 | `ni_token` | `{1: attemptId, 2: data (bstr, archived NIDiscoveryToken)}` |
 | 24 | `oob_data` | `{1: attemptId, 2: data (bstr, opaque RangingManager OOB bytes)}` |
+| 25 | `proximity_hint` | `{1: band (uint, 0=unknown 1=far 2=near 3=veryNear)}` |
 | 32 | `find_active` | `{1: deadline (uint)}` |
 | 33 | `find_stopping` | `{}` |
 | 34 | `find_expired` | `{}` |
@@ -508,6 +509,22 @@ sides (fixtures: `shared/vectors/capability_selection.json`):
    median plus hysteresis) into `veryNear` / `near` / `far` / `unknown`
    bands; it is never shown as an exact distance and never produces an arrow.
 
+   The filter parameters are **pinned here** so both platforms classify a
+   given RSSI sequence identically. They were previously left to each
+   implementation and silently diverged, which made the two phones of one
+   pair report different bands at the same distance:
+
+   | Parameter | Value |
+   |---|---|
+   | window | 5 raw samples (rolling) |
+   | median | averaged-middle: odd `n` → `s[n/2]`, even `n` → `(s[n/2-1] + s[n/2]) / 2` |
+   | `veryNear` entry | median ≥ −55 dBm |
+   | `near` entry | median ≥ −75 dBm |
+   | hysteresis | 5 dB — leaving a band requires overshooting its entry threshold |
+
+   Band values on the wire (§5 `proximity_hint`): `0=unknown`, `1=far`,
+   `2=near`, `3=veryNear`.
+
 Direction UI appears only after a fresh platform angle sample. A missing
 angle degrades to distance-only; missing distance degrades to proximity-only.
 On UWB invalidation or sustained sample loss the session keeps the
@@ -529,7 +546,15 @@ Attempt negotiation per method:
   `apple_shareable`. No separate `ranging_offer` round-trip is used.
 - `uwb_android_oob`: either side's first `oob_data` for a fresh `attemptId`
   opens the attempt; the platform OOB payloads negotiate the rest.
-- `ble_rssi`: local-only; no messages.
+- `ble_rssi`: the BLE **central** is the only side with a link-RSSI API
+  (`readRSSI` / `onRssi`); a GATT server cannot read it. So the central
+  classifies, and pushes its band to the peer with `proximity_hint`
+  (§5, msgType 25) on every change — otherwise the peripheral-role device,
+  which is deterministically the same phone for a given pair (§9 role
+  arbitration), would show a permanently empty proximity screen. The
+  receiver displays the band verbatim and never re-filters it. Sending is
+  edge-triggered on a band change, not per sample. No offer/accept
+  round-trip: `ble_rssi` needs no attempt negotiation.
 
 The offered/accepted/implied `method` MUST lie in the mutually-supported set of
 both exchanged CapabilitySets (§14); an out-of-transcript method is a
